@@ -1,0 +1,1541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Call for Fire Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Layout: FDC = plotting map + setup/mission sidebar; FO = full-bleed optic view with HUD and radio panel */
+:root{
+  --bg:#1c2018; --panel:#242a1f; --panel2:#2d3427; --line:#414a36; --fg:#e3dec9; --muted:#9da189;
+  --amber:#e2b34a; --friend:#5b8fd6; --hostile:#d4553f; --ok:#82b36c;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--body)}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:.02em;margin:0;text-wrap:balance}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.label{font-family:var(--display);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:8px 12px;font-weight:600}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);color:#1c1a10;border-color:var(--amber)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{border-color:var(--hostile);color:#f0b2a6}
+.btn.on{border-color:var(--amber);color:var(--amber)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+input[type=text],input[type=number],select,textarea{background:#171a14;border:1px solid var(--line);border-radius:4px;padding:7px 9px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:54px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:end}
+.fld{display:grid;gap:4px;min-width:0}
+.screen{position:fixed;inset:0}
+.note{color:var(--muted);font-size:13px}
+.warn{color:var(--amber);font-size:13px}
+.err{color:#f0a090;font-size:13px}
+
+/* ---------- Lobby ---------- */
+#lobby{display:grid;place-items:center;overflow:auto;padding:24px max(16px,env(safe-area-inset-left,0px)) 24px max(16px,env(safe-area-inset-right,0px));
+  background:
+   repeating-linear-gradient(0deg,transparent 0 79px,#2a3123 79px 80px),
+   repeating-linear-gradient(90deg,transparent 0 79px,#2a3123 79px 80px),var(--bg)}
+.lobby-card{width:min(760px,100%);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:28px;display:grid;gap:22px}
+.lobby-card h1{font-size:44px;line-height:1;text-transform:uppercase;letter-spacing:.04em}
+.lobby-card h1 span{color:var(--amber)}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.role{border:1px solid var(--line);border-radius:6px;padding:18px;display:grid;gap:12px;align-content:start;background:var(--panel2)}
+.role h2{font-size:24px;display:flex;align-items:center;gap:10px}
+.role .sym{width:26px;height:20px;flex:none}
+@media (max-width:620px){.roles{grid-template-columns:1fr}.lobby-card h1{font-size:34px}}
+
+/* ---------- FDC ---------- */
+#fdc{display:grid;grid-template-columns:minmax(0,1fr) 400px}
+#fdcMap{height:100%;background:#cfd3c4}
+#fdcSide{height:100%;overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line);display:grid;gap:10px}
+.sec h3{font-size:18px;text-transform:uppercase;letter-spacing:.06em}
+#fdcSide>*{flex:none}
+.fold>summary{padding:14px 16px;cursor:pointer;font-family:var(--display);font-size:18px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line)}
+.mission .btn{padding:7px 8px;font-size:14px}
+.code{font-family:var(--mono);font-size:26px;letter-spacing:.18em;color:var(--amber)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.steps .btn{padding:7px 4px;font-size:13px}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.chk{display:flex;gap:8px;align-items:center;background:#1c2018;border:1px solid var(--line);border-radius:4px;padding:6px 8px;font-size:14px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.players{display:grid;gap:4px;font-size:14px}
+.players div{display:flex;justify-content:space-between;gap:8px}
+.mission{border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:4px;padding:10px;display:grid;gap:8px;background:#1c2018}
+.mission.ended{border-left-color:var(--line);opacity:.7}
+.mission .head{display:flex;justify-content:space-between;gap:8px;font-family:var(--display);font-size:16px;letter-spacing:.04em}
+.pill{font-family:var(--display);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:1px 7px;border-radius:10px;border:1px solid currentColor}
+.pill.alive{color:var(--hostile)} .pill.suppressed{color:var(--amber)} .pill.destroyed{color:var(--ok)}
+.log{font-family:var(--mono);font-size:12.5px;display:grid;gap:5px;align-content:start;max-height:260px;overflow-y:auto}
+.log .ln{display:grid;grid-template-columns:auto 1fr;gap:8px}
+.log .who{color:var(--amber)}
+.log .who.fdc{color:var(--friend)}
+.log .who.sys{color:var(--muted)}
+.cursor-grid{position:absolute;left:10px;bottom:22px;z-index:500;background:rgba(28,32,24,.88);border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-family:var(--mono);font-size:13px;pointer-events:none}
+.mapwrap{position:relative;height:100%;min-width:0}
+.leaflet-container{font-family:var(--body)}
+.gridlbl{font-family:var(--mono);font-size:11px;color:#3a3a2a;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap}
+@media (max-width:860px){#fdc{grid-template-columns:1fr;grid-template-rows:55% 45%}#fdcSide{border-left:0;border-top:1px solid var(--line)}}
+
+/* ---------- FO ---------- */
+#fo{background:#000;overflow:hidden}
+#view,#hud{position:absolute;inset:0;width:100%;height:100%;display:block}
+#view{touch-action:none;cursor:grab}
+#view:active{cursor:grabbing}
+#hud{pointer-events:none}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(18,21,15,.92);z-index:30;padding:20px}
+.overlay .box{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:22px;max-width:520px;width:100%;display:grid;gap:12px}
+.bar{height:6px;background:#151810;border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--amber);transition:width .2s}
+#foInfo{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:12px;z-index:10;background:rgba(28,32,24,.85);border:1px solid var(--line);border-radius:5px;padding:10px 12px;max-width:min(330px,calc(100% - 24px));display:grid;gap:6px;font-size:13px}
+#foInfo .brief{white-space:pre-wrap;color:var(--fg)}
+#toolbar{position:absolute;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom,0px));z-index:10;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 24px)}
+#toolbar .btn{background:rgba(36,42,31,.92);font-size:14px;padding:8px 11px}
+#toolbar .btn kbd{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px}
+#lasePanel{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:70px;z-index:10;background:rgba(28,32,24,.88);border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-family:var(--mono);font-size:12.5px;display:grid;gap:3px;min-width:230px}
+#radio{position:absolute;right:0;top:0;bottom:0;width:min(370px,100%);z-index:20;background:rgba(36,42,31,.97);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto}
+#radio .sec{background:transparent}
+#radioBtn{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:12px;z-index:15}
+#mapModal{position:absolute;inset:0;z-index:25;background:rgba(10,12,8,.75);display:grid;place-items:center;padding:16px}
+#mapModal .frame{width:min(1000px,100%);height:min(720px,100%);background:var(--panel);border:1px solid var(--line);border-radius:6px;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);overflow:hidden}
+#mapModal .top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;flex-wrap:wrap}
+#foMap{min-height:0;position:relative}
+#mapTools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 12px 8px}
+#mapTools .btn{padding:5px 10px;font-size:14px}
+#mapTools input{width:130px;padding:5px 8px}
+#foPin{padding:0 12px 8px;font-size:13px;color:var(--fg);min-height:28px}
+.maplbl{font-family:var(--mono);font-size:11px;font-weight:500;color:#5a1408;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;text-align:center}
+.leaflet-tooltip.marktip{font-family:var(--mono);font-size:11.5px;padding:1px 5px;color:#1c1a10}
+#toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:40;background:rgba(28,32,24,.95);border:1px solid var(--amber);color:var(--amber);font-family:var(--display);font-size:20px;letter-spacing:.08em;text-transform:uppercase;padding:6px 16px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<!-- ================= LOBBY ================= -->
+<section id="lobby" class="screen">
+  <div class="lobby-card">
+    <div style="display:grid;gap:8px">
+      <div class="label">Indirect fire · observer training</div>
+      <h1>Call for <span>Fire</span> Trainer</h1>
+      <p class="note" style="margin:0;max-width:60ch">One person runs the Fire Direction Center and sets up the exercise on a real topographic map. Everyone else joins as a Forward Observer and finds the target in a 3D view built from real elevation and imagery.</p>
+    </div>
+    <label style="display:grid;gap:6px;max-width:320px"><span class="label">Your callsign</span><input id="nameIn" type="text" maxlength="20" placeholder="e.g. Hawk 2-1"></label>
+    <div class="roles">
+      <div class="role">
+        <h2><svg class="sym" viewBox="0 0 26 20"><rect x="1" y="1" width="24" height="18" fill="none" stroke="#5b8fd6" stroke-width="2"/><circle cx="13" cy="10" r="3" fill="#5b8fd6"/></svg>FDC</h2>
+        <p class="note" style="margin:0">Create a private room, choose the 20 × 20 km training area, the OP, the observer's tools and the enemy. Process fire missions.</p>
+        <button id="createBtn" class="btn primary">Create room</button>
+      </div>
+      <div class="role">
+        <h2><svg class="sym" viewBox="0 0 26 20"><path d="M13 2 L24 18 L2 18 Z" fill="none" stroke="#5b8fd6" stroke-width="2"/><circle cx="13" cy="13" r="2" fill="#5b8fd6"/></svg>Forward Observer</h2>
+        <p class="note" style="margin:0">Join with the room code from your FDC.</p>
+        <div class="row" style="flex-wrap:nowrap"><input id="codeIn" type="text" maxlength="6" placeholder="Room code" class="mono" style="text-transform:uppercase;letter-spacing:.15em"><button id="joinBtn" class="btn primary">Join</button></div>
+      </div>
+    </div>
+    <div id="lobbyMsg" class="err" hidden></div>
+  </div>
+</section>
+
+<!-- ================= FDC ================= -->
+<section id="fdc" class="screen" hidden>
+  <div class="mapwrap"><div id="fdcMap"></div><div class="cursor-grid" id="fdcCursor">—</div></div>
+  <aside id="fdcSide">
+    <div class="sec">
+      <div class="row" style="justify-content:space-between"><span class="label">Room code</span><span class="label" id="netState">connecting…</span></div>
+      <div class="row" style="justify-content:space-between"><span class="code" id="roomCode">······</span><button class="btn" id="copyLink">Copy invite link</button></div>
+      <div class="players" id="players"><span class="note">No observers yet.</span></div>
+    </div>
+
+    <details class="fold" id="setupSec" open><summary>Exercise setup</summary>
+    <div class="sec">
+      <div class="row" style="flex-wrap:nowrap"><input id="placeSearch" type="text" placeholder="Jump to place, e.g. Ādaži"><button class="btn" id="placeGo">Go</button></div>
+      <div class="label">Click the map to place</div>
+      <div class="steps">
+        <button class="btn on" data-mode="box">1 · Area</button>
+        <button class="btn" data-mode="op">2 · OP</button>
+        <button class="btn" data-mode="enemy">3 · Enemy</button>
+      </div>
+      <div class="note" id="modeHint">Click the center of the 20 × 20 km training area.</div>
+      <dl class="kv" id="setupKv"></dl>
+      <div class="grid2">
+        <label style="display:grid;gap:4px"><span class="label">OP height</span>
+          <select id="towerIn"><option value="0">Ground (eye 1.7 m)</option><option value="4">4 m (vehicle roof)</option><option value="10">10 m tower</option><option value="20">20 m tower</option></select></label>
+        <label style="display:grid;gap:4px"><span class="label">Vegetation</span>
+          <select id="vegIn"><option value="normal">Forests from imagery</option><option value="sparse">Sparse forests</option><option value="off">No trees</option></select></label>
+      </div>
+      <div class="label">Observer equipment</div>
+      <div class="tools">
+        <label class="chk"><input type="checkbox" id="t_bino" checked> Binoculars</label>
+        <label class="chk"><input type="checkbox" id="t_compass" checked> Compass</label>
+        <label class="chk"><input type="checkbox" id="t_map" checked> Map</label>
+        <label class="chk"><input type="checkbox" id="t_plrf" checked> Laser PLRF</label>
+      </div>
+      <div class="grid2">
+        <label style="display:grid;gap:4px"><span class="label">Enemy type</span>
+          <select id="enemyType"><option value="random">Random</option><option value="infantry">Infantry section</option><option value="ifv">IFV</option><option value="tank">Tank</option><option value="truck">Truck</option><option value="mortar">Mortar team</option></select></label>
+        <label class="fld"><span class="label">Quantity</span>
+          <select id="enemyCount"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+      </div>
+      <div class="grid3">
+        <label class="fld"><span class="label">Formation</span><select id="enemyForm"><option value="line">Linear</option><option value="cluster">Clustered</option></select></label>
+        <label class="fld"><span class="label">Spacing (m)</span><input id="enemySp" type="number" min="5" max="500" step="5" value="40"></label>
+        <label class="fld"><span class="label">Line attitude</span><input id="enemyAtt" type="number" min="0" max="6399" step="100" placeholder="random"></label>
+      </div>
+      <div class="note">Formation and spacing apply when the quantity is above 1. Attitude is the direction the line runs, in mils. Changing these re-forms an enemy already on the map.</div>
+      <button class="btn" id="spawnBtn" disabled>Spawn at a random visible spot</button>
+      <label style="display:grid;gap:4px"><span class="label">Briefing for observers</span><textarea id="briefIn" placeholder="e.g. Enemy recon expected from the east. Report and engage."></textarea></label>
+      <div id="setupMsg" class="note"></div>
+      <button class="btn primary" id="startBtn" disabled>Start exercise</button>
+    </div>
+    </details>
+
+    <div class="sec">
+      <h3>Radio net</h3>
+      <div class="note">Observers type their transmissions here. Read the request, then enter the mission data below.</div>
+      <div class="log" id="fdcLog"></div>
+      <div class="row" style="flex-wrap:nowrap"><input id="fdcSay" type="text" maxlength="300" placeholder="Transmit to all observers"><button class="btn" id="fdcSayBtn">Send</button></div>
+    </div>
+
+    <div class="sec">
+      <h3>Fire missions</h3>
+      <div class="grid2">
+        <label class="fld"><span class="label">Observer</span><select id="nmObs"><option value="">All stations</option></select></label>
+        <label class="fld"><span class="label">Target description</span><input id="nmDesc" type="text" maxlength="60" placeholder="e.g. BMP in the open"></label>
+      </div>
+      <button class="btn primary" id="nmCreate">New fire mission</button>
+      <div id="missionMsg" class="warn" hidden></div>
+      <div class="grid2">
+        <label class="fld"><span class="label">Time of flight (s)</span><input id="tofIn" type="number" min="4" max="60" value="15"></label>
+        <label class="fld"><span class="label">Dispersion CEP (m)</span><input id="cepIn" type="number" min="0" max="200" value="0"></label>
+      </div>
+      <div class="note">With dispersion 0 every round lands exactly where you aim it. Raise it for realistic scatter.</div>
+      <label class="chk"><input type="checkbox" id="autoSay" checked> Announce shot and splash automatically</label>
+      <div id="missions" style="display:grid;gap:8px"><span class="note">No missions yet. Open one when an observer calls for fire.</span></div>
+      <button class="btn" id="clearImpacts">Clear impact marks</button>
+    </div>
+  </aside>
+</section>
+
+<!-- ================= FO ================= -->
+<section id="fo" class="screen" hidden>
+  <canvas id="view"></canvas>
+  <canvas id="hud"></canvas>
+  <div id="foInfo">
+    <div class="row" style="justify-content:space-between"><span class="label" id="foCall">Observer</span><span class="label" id="foNet">—</span></div>
+    <div class="label" id="foOp" hidden></div>
+    <div class="brief" id="foBrief" hidden></div>
+  </div>
+  <div id="lasePanel" hidden></div>
+  <div id="toolbar"></div>
+  <button id="radioBtn" class="btn">Radio <kbd class="mono" style="font-size:11px;color:var(--muted)">R</kbd></button>
+  <aside id="radio" hidden>
+    <div class="sec" style="grid-template-columns:1fr auto;align-items:center"><h3>Radio net</h3><button class="btn" id="radioClose">Close</button></div>
+    <div class="sec" style="flex:1;min-height:0;grid-template-rows:auto minmax(0,1fr) auto;border-bottom:0">
+      <div class="note">Type every transmission to the FDC yourself: call for fire, corrections, end of mission.</div>
+      <div class="log" id="foLog" style="max-height:none"></div>
+      <div class="row" style="flex-wrap:nowrap"><input id="foSay" type="text" maxlength="300" placeholder="e.g. Adjust fire, grid 1234 5678, over"><button class="btn primary" id="foSayBtn">Send</button></div>
+    </div>
+  </aside>
+  <div id="mapModal" hidden>
+    <div class="frame">
+      <div class="top"><span class="label">Map · cursor <span class="mono" id="foMapCursor">—</span></span><button class="btn" id="mapClose">Close <kbd class="mono" style="font-size:11px;color:var(--muted)">M</kbd></button></div>
+      <div id="mapTools">
+        <button class="btn on" data-mt="measure">Measure</button>
+        <button class="btn" data-mt="mark">Marker</button>
+        <button class="btn" data-mt="line">Line</button>
+        <button class="btn" data-mt="compass">Compass</button>
+        <span id="roseCtl" class="row" hidden>
+          <input id="roseAz" type="number" min="0" max="6399" placeholder="Azimuth (mils)">
+          <button class="btn" id="roseView">My heading</button>
+          <button class="btn" id="roseBack">Back azimuth</button>
+          <button class="btn primary" id="roseDraw">Draw line</button>
+        </span>
+        <span style="flex:1"></span>
+        <button class="btn" id="mapUndo">Undo</button>
+        <button class="btn" id="mapClear">Clear all</button>
+      </div>
+      <div class="mono" id="foPin"></div>
+      <div id="foMap"></div>
+    </div>
+  </div>
+  <div class="overlay" id="foWait">
+    <div class="box">
+      <h2 style="font-size:28px;text-transform:uppercase" id="waitTitle">Joining room…</h2>
+      <div class="note" id="waitText">Connecting to the FDC.</div>
+      <div class="bar" id="waitBar" hidden><i></i></div>
+      <button class="btn primary" id="retryBtn" hidden onclick="location.reload()">Retry</button>
+    </div>
+  </div>
+  <div id="toast" hidden></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+'use strict';
+/* ====================================================================
+   Basics
+   ==================================================================== */
+const $=(s,r=document)=>r.querySelector(s);
+const D2R=Math.PI/180,R2D=180/Math.PI,MIL=2*Math.PI/6400;
+const toMils=r=>((Math.round(r/MIL)%6400)+6400)%6400;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pad=(v,n)=>String(v).padStart(n,'0');
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function hash3(i,j,k){let h=(Math.imul(i,374761393)+Math.imul(j,668265263)+Math.imul(k,1442695041))|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296;}
+/* Smooth value noise on an integer lattice; deterministic, so FDC and FO compute the same ground. */
+function vnoise(x,y,k){const xi=Math.floor(x),yi=Math.floor(y),fx=x-xi,fy=y-yi,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+  const a=hash3(xi,yi,k),b=hash3(xi+1,yi,k),c=hash3(xi,yi+1,k),d=hash3(xi+1,yi+1,k);
+  return (a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v;}
+/* Extra rolling micro-relief in metres (about ±14 m) added to the real elevation so flat ground has folds and dead ground. */
+function relief(E,N){return (vnoise(E/600,N/600,11)-.5)*18+(vnoise(E/220,N/220,12)-.5)*7+(vnoise(E/90,N/90,13)-.5)*3;}
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const nowStr=()=>{const d=new Date();return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2)+':'+pad(d.getSeconds(),2);};
+
+/* ====================================================================
+   Geodesy: WGS84 UTM + MGRS
+   ==================================================================== */
+const WA=6378137,WF=1/298.257223563,K0=0.9996,E2=WF*(2-WF),EP2=E2/(1-E2);
+function llToUtm(lat,lon,zone){
+  if(!zone){zone=Math.floor((lon+180)/6)+1;if(lat>=56&&lat<64&&lon>=3&&lon<12)zone=32;}
+  const lon0=((zone-1)*6-180+3)*D2R,phi=lat*D2R,s=Math.sin(phi),c=Math.cos(phi),t=Math.tan(phi);
+  const N=WA/Math.sqrt(1-E2*s*s),T=t*t,C=EP2*c*c,A=c*(lon*D2R-lon0);
+  const M=WA*((1-E2/4-3*E2*E2/64-5*E2**3/256)*phi-(3*E2/8+3*E2*E2/32+45*E2**3/1024)*Math.sin(2*phi)+(15*E2*E2/256+45*E2**3/1024)*Math.sin(4*phi)-(35*E2**3/3072)*Math.sin(6*phi));
+  const E=K0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*EP2)*A**5/120)+500000;
+  let Nn=K0*(M+N*t*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*EP2)*A**6/720));
+  if(lat<0)Nn+=1e7;
+  return {zone,E,N:Nn};
+}
+function utmToLl(E,N,zone){
+  const x=E-500000,y=N,lon0=((zone-1)*6-180+3)*D2R;
+  const mu=(y/K0)/(WA*(1-E2/4-3*E2*E2/64-5*E2**3/256));
+  const e1=(1-Math.sqrt(1-E2))/(1+Math.sqrt(1-E2));
+  const p1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)+(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu);
+  const s=Math.sin(p1),c=Math.cos(p1),t=Math.tan(p1);
+  const N1=WA/Math.sqrt(1-E2*s*s),T1=t*t,C1=EP2*c*c,R1=WA*(1-E2)/Math.pow(1-E2*s*s,1.5),D=x/(N1*K0);
+  const lat=p1-(N1*t/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*EP2)*D**4/24+(61+90*T1+298*C1+45*T1*T1-252*EP2-3*C1*C1)*D**6/720);
+  const lon=lon0+(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*EP2+24*T1*T1)*D**5/120)/c;
+  return {lat:lat*R2D,lon:lon*R2D};
+}
+const BANDS='CDEFGHJKLMNPQRSTUVWX',COLSETS=['ABCDEFGH','JKLMNPQR','STUVWXYZ'],ROWS='ABCDEFGHJKLMNPQRSTUV';
+const band=lat=>lat>=72?'X':BANDS[Math.floor((lat+80)/8)]||'?';
+function mgrs(zone,E,N,digits=5){
+  const ll=utmToLl(E,N,zone);
+  const col=COLSETS[(zone-1)%3][Math.floor(E/1e5)-1]||'?';
+  let r=Math.floor(N/1e5)%20;if(zone%2===0)r=(r+5)%20;
+  const div=10**(5-digits);
+  return `${zone}${band(ll.lat)} ${col}${ROWS[r]} ${pad(Math.floor((E%1e5)/div),digits)} ${pad(Math.floor((N%1e5)/div),digits)}`;
+}
+function parseMgrs(str,ref){ // ref {zone,E,N}; returns coords in ref.zone
+  const s=String(str).toUpperCase().replace(/[^0-9A-Z]/g,'');
+  const m=s.match(/^(?:(\d{1,2})([C-HJ-NP-X]))?([A-HJ-NP-Z])([A-HJ-NP-V])(\d*)$/);
+  if(!m)return null;const dg=m[5];if(dg.length%2||dg.length>10)return null;
+  const zone=m[1]?+m[1]:ref.zone;if(zone<1||zone>60)return null;
+  const ci=COLSETS[(zone-1)%3].indexOf(m[3]);if(ci<0)return null;
+  let ri=ROWS.indexOf(m[4]);if(ri<0)return null;if(zone%2===0)ri=(ri-5+20)%20;
+  const k=dg.length/2,res=10**(5-k);
+  const e=k?+dg.slice(0,k)*res:0,n=k?+dg.slice(k)*res:0;
+  const E=(ci+1)*1e5+e+res/2,Nb=ri*1e5+n+res/2;
+  let refN=ref.N;
+  if(zone!==ref.zone){const ll=utmToLl(ref.E,ref.N,ref.zone);refN=llToUtm(ll.lat,ll.lon,zone).N;}
+  const N=Nb+Math.round((refN-Nb)/2e6)*2e6;
+  if(zone!==ref.zone){const ll=utmToLl(E,N,zone);const u=llToUtm(ll.lat,ll.lon,ref.zone);return {E:u.E,N:u.N,res};}
+  return {E,N,res};
+}
+
+/* ====================================================================
+   Web tiles: elevation (Terrarium) and imagery (Esri)
+   ==================================================================== */
+const TILE={
+  elev:(z,x,y)=>`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`,
+  sat:(z,x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+};
+const lon2px=(lon,z)=>(lon+180)/360*256*2**z;
+const lat2px=(lat,z)=>{const s=Math.sin(lat*D2R);return (0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*256*2**z;};
+const px2lon=(px,z)=>px/(256*2**z)*360-180;
+const px2lat=(py,z)=>Math.atan(Math.sinh(Math.PI*(1-2*py/(256*2**z))))*R2D;
+
+class Mosaic{
+  constructor(z,b,url,fallback){
+    Object.assign(this,{z,url,fallback});
+    this.x0=Math.floor(lon2px(b.w,z)/256);this.x1=Math.floor(lon2px(b.e,z)/256);
+    this.y0=Math.floor(lat2px(b.n,z)/256);this.y1=Math.floor(lat2px(b.s,z)/256);
+    this.W=(this.x1-this.x0+1)*256;this.H=(this.y1-this.y0+1)*256;
+    this.count=(this.x1-this.x0+1)*(this.y1-this.y0+1);this.failed=0;
+  }
+  async load(tick){
+    const c=this.canvas=document.createElement('canvas');c.width=this.W;c.height=this.H;
+    const ctx=this.ctx=c.getContext('2d');
+    const jobs=[];for(let y=this.y0;y<=this.y1;y++)for(let x=this.x0;x<=this.x1;x++)jobs.push([x,y]);
+    const one=([x,y])=>new Promise(res=>{
+      const im=new Image();im.crossOrigin='anonymous';let done=false;
+      const fin=ok=>{if(done)return;done=true;clearTimeout(to);
+        if(ok)ctx.drawImage(im,(x-this.x0)*256,(y-this.y0)*256);
+        else{this.failed++;ctx.fillStyle=this.fallback;ctx.fillRect((x-this.x0)*256,(y-this.y0)*256,256,256);}
+        tick&&tick();res();};
+      const to=setTimeout(()=>fin(false),20000);
+      im.onload=()=>fin(true);im.onerror=()=>fin(false);
+      im.src=this.url(this.z,x,y);
+    });
+    const worker=async()=>{while(jobs.length)await one(jobs.shift());};
+    await Promise.all(Array.from({length:8},worker));
+  }
+  px(lat,lon){return [lon2px(lon,this.z)-this.x0*256,lat2px(lat,this.z)-this.y0*256];}
+  covers(lat,lon,m=2){const [x,y]=this.px(lat,lon);return x>=m&&y>=m&&x<this.W-m&&y<this.H-m;}
+  decodeElev(){
+    let d;try{d=this.ctx.getImageData(0,0,this.W,this.H).data;}catch(e){d=null;}
+    const h=this.h=new Float32Array(this.W*this.H);
+    if(!d)return;
+    for(let i=0;i<h.length;i++)h[i]=d[4*i]*256+d[4*i+1]+d[4*i+2]/256-32768;
+  }
+  elev(lat,lon){
+    let [x,y]=this.px(lat,lon);x=clamp(x-.5,0,this.W-1.001);y=clamp(y-.5,0,this.H-1.001);
+    const ix=x|0,iy=y|0,fx=x-ix,fy=y-iy,W=this.W,h=this.h,i=iy*W+ix;
+    return (h[i]*(1-fx)+h[i+1]*fx)*(1-fy)+(h[i+W]*(1-fx)+h[i+W+1]*fx)*fy;
+  }
+}
+
+/* Forest / water classification from imagery, in coarse cells. Deterministic so FDC and FO agree. */
+const VEG={normal:.5,sparse:.2,off:0};
+function classify(mos,cellPx){
+  const cw=Math.ceil(mos.W/cellPx),ch=Math.ceil(mos.H/cellPx);
+  const c=document.createElement('canvas');c.width=cw;c.height=ch;
+  const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(mos.canvas,0,0,cw,ch);
+  let d;try{d=ctx.getImageData(0,0,cw,ch).data;}catch(e){return null;}
+  const cls=new Uint8Array(cw*ch);
+  for(let i=0;i<cw*ch;i++){
+    const r=d[4*i],g=d[4*i+1],b=d[4*i+2],lum=(r+g+b)/3;
+    if(lum<46&&b>=r&&b>=g-3)cls[i]=2;               // water
+    else if(lum<90&&g>=r-4&&g>=b-6)cls[i]=1;        // forest
+  }
+  // soft-edged forest and water masks for ground texturing and for keeping water flat
+  const blur=val=>{const out=new Float32Array(cw*ch);
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){let n=0,t=0;
+      for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=ch)continue;for(let dx=-1;dx<=1;dx++){const xx=x+dx;if(xx<0||xx>=cw)continue;n++;if(cls[yy*cw+xx]===val)t++;}}
+      out[y*cw+x]=t/n;}
+    return out;};
+  return {mos,cellPx,cw,ch,cls,fw:blur(1),ww:blur(2)};
+}
+function maskAt(F,arr,gx,gy){ // bilinear sample in cell coordinates
+  gx=clamp(gx,0,F.cw-1.001);gy=clamp(gy,0,F.ch-1.001);
+  const ix=gx|0,iy=gy|0,fx=gx-ix,fy=gy-iy,i=iy*F.cw+ix;
+  return (arr[i]*(1-fx)+arr[i+1]*fx)*(1-fy)+(arr[i+F.cw]*(1-fx)+arr[i+F.cw+1]*fx)*fy;
+}
+
+/* Simulated ground: a painted texture (fields, pasture, soil, forest floor, water) generated from the
+   forest/water classification instead of showing the satellite photo itself. */
+const GROUND=[[.2,[88,112,62]],[.45,[112,132,72]],[.7,[156,150,98]],[.9,[132,112,84]]];
+function simTexture(T,mos,F,maxDim){
+  const sc=Math.min(1,maxDim/Math.max(mos.W,mos.H)),W=Math.max(2,Math.round(mos.W*sc)),H=Math.max(2,Math.round(mos.H*sc));
+  const c=document.createElement('canvas');c.width=W;c.height=H;
+  const ctx=c.getContext('2d'),img=ctx.createImageData(W,H),d=img.data;
+  const corner=(px,py)=>{const u=llToUtm(px2lat(py+mos.y0*256,mos.z),px2lon(px+mos.x0*256,mos.z),T.zone);return [u.E,u.N];};
+  const c00=corner(0,0),c10=corner(mos.W,0),c01=corner(0,mos.H),c11=corner(mos.W,mos.H);
+  for(let y=0;y<H;y++){
+    const v=(y+.5)/H,aE=c00[0]+(c01[0]-c00[0])*v,aN=c00[1]+(c01[1]-c00[1])*v,bE=c10[0]+(c11[0]-c10[0])*v,bN=c10[1]+(c11[1]-c10[1])*v;
+    for(let x=0;x<W;x++){
+      const u=(x+.5)/W,E=aE+(bE-aE)*u,N=aN+(bN-aN)*u;
+      const p=(vnoise(E/380,N/380,21)+.5*vnoise(E/140,N/140,22))/1.5;
+      let r,g,b;
+      if(p<=GROUND[0][0])[r,g,b]=GROUND[0][1];
+      else if(p>=GROUND[3][0])[r,g,b]=GROUND[3][1];
+      else{let k=0;while(p>GROUND[k+1][0])k++;const t=(p-GROUND[k][0])/(GROUND[k+1][0]-GROUND[k][0]),A=GROUND[k][1],B=GROUND[k+1][1];
+        r=A[0]+(B[0]-A[0])*t;g=A[1]+(B[1]-A[1])*t;b=A[2]+(B[2]-A[2])*t;}
+      let fw=0,ww=0;
+      if(F){const gx=u*mos.W/F.cellPx-.5,gy=v*mos.H/F.cellPx-.5;fw=maskAt(F,F.fw,gx,gy);ww=maskAt(F,F.ww,gx,gy);}
+      const tone=1+(vnoise(E/35,N/35,23)-.5)*.18+(Math.random()-.5)*.07;
+      r=(r+(58-r)*fw)*tone;g=(g+(74-g)*fw)*tone;b=(b+(46-b)*fw)*tone;
+      if(ww>0){const w=Math.min(1,ww*1.6);r+=(70-r)*w;g+=(96-g)*w;b+=(112-b)*w;}
+      const i=4*(y*W+x);d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);return c;
+}
+/* Small repeating grain texture that gives the ground close-up detail. */
+function grainTexture(){
+  const S=256,c=document.createElement('canvas');c.width=c.height=S;const ctx=c.getContext('2d'),img=ctx.createImageData(S,S),d=img.data;
+  const tn=(x,y,per,k)=>{const f=S/per,gx=x/f,gy=y/f,xi=Math.floor(gx),yi=Math.floor(gy),fx=gx-xi,fy=gy-yi,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+    const h=(a,b)=>hash3(((a%per)+per)%per,((b%per)+per)%per,k);
+    return (h(xi,yi)+(h(xi+1,yi)-h(xi,yi))*u)*(1-v)+(h(xi,yi+1)+(h(xi+1,yi+1)-h(xi,yi+1))*u)*v;};
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){
+    const n=.45*tn(x,y,6,31)+.3*tn(x,y,20,32)+.25*tn(x,y,64,33),val=clamp(.62+n*.5+(Math.random()-.5)*.1,0,1)*255,i=4*(y*S+x);
+    d[i]=d[i+1]=d[i+2]=val;d[i+3]=255;}
+  ctx.putImageData(img,0,0);return c;
+}
+
+/* ====================================================================
+   Terrain: local frame = UTM grid metres from the OP (x east, n north)
+   ==================================================================== */
+const INNER=3200,OUTER=9000;
+class Terrain{
+  constructor(zone,E0,N0,veg){Object.assign(this,{zone,E0,N0,veg});this.curvK=0.87/(2*6371000);}
+  toLL(x,n){return utmToLl(this.E0+x,this.N0+n,this.zone);}
+  toLocal(lat,lon){const u=llToUtm(lat,lon,this.zone);return [u.E-this.E0,u.N-this.N0];}
+  bounds(h){
+    let s=90,n=-90,w=180,e=-180;
+    for(const [x,y] of [[-h,-h],[h,-h],[-h,h],[h,h],[0,h],[0,-h],[h,0],[-h,0]]){const p=this.toLL(x,y);s=Math.min(s,p.lat);n=Math.max(n,p.lat);w=Math.min(w,p.lon);e=Math.max(e,p.lon);}
+    return {s:s-.001,n:n+.001,w:w-.002,e:e+.002};
+  }
+  async load(outer,prog){
+    const ms=[this.eIn=new Mosaic(13,this.bounds(INNER+200),TILE.elev,'rgb(128,0,0)'),
+              this.iIn=new Mosaic(15,this.bounds(INNER+100),TILE.sat,'#7d7a5c')];
+    if(outer)ms.push(this.eOut=new Mosaic(12,this.bounds(OUTER+300),TILE.elev,'rgb(128,0,0)'),
+                     this.iOut=new Mosaic(13,this.bounds(OUTER+100),TILE.sat,'#7d7a5c'));
+    const total=ms.reduce((a,m)=>a+m.count,0);let done=0;
+    await Promise.all(ms.map(m=>m.load(()=>prog&&prog(++done,total))));
+    this.eIn.decodeElev();if(this.eOut)this.eOut.decodeElev();
+    this.fIn=classify(this.iIn,6);
+    if(outer)this.fOut=classify(this.iOut,4);
+    this.imageryFailed=this.iIn.failed>this.iIn.count/2;
+    this.h0=this.rawH(0,0);this.ready=true;
+  }
+  hLL(lat,lon){if(this.eOut&&!this.eIn.covers(lat,lon))return this.eOut.elev(lat,lon);return this.eIn.elev(lat,lon);}
+  rawH(x,n){
+    const p=this.toLL(x,n);let dry=1;
+    const F=this.fOut&&!this.eIn.covers(p.lat,p.lon)?this.fOut:this.fIn;
+    if(F){const [px,py]=F.mos.px(p.lat,p.lon);dry=1-Math.min(1,1.6*maskAt(F,F.ww,px/F.cellPx-.5,py/F.cellPx-.5));}
+    return this.hLL(p.lat,p.lon)+relief(this.E0+x,this.N0+n)*dry;
+  }
+  gH(x,n){return this.rawH(x,n)-(x*x+n*n)*this.curvK;}  // absolute height incl. earth curvature drop
+  gY(x,n){return this.gH(x,n)-this.h0;}                // scene height relative to OP ground
+  cellAt(F,x,n){if(!F)return -1;const p=this.toLL(x,n);const [px,py]=F.mos.px(p.lat,p.lon);const i=Math.floor(px/F.cellPx),j=Math.floor(py/F.cellPx);if(i<0||j<0||i>=F.cw||j>=F.ch)return -1;return j*F.cw+i;}
+  clsAt(x,n){const c=this.cellAt(this.fIn,x,n);return c<0?0:this.fIn.cls[c];}
+  tree(F,i,j,salt){
+    if(F.cls[j*F.cw+i]!==1)return null;
+    if(hash3(i,j,1+salt)>VEG[this.veg])return null;
+    return {h:10.4+hash3(i,j,2+salt)*9.6,jx:hash3(i,j,3+salt),jy:hash3(i,j,4+salt),t:hash3(i,j,5+salt),c:hash3(i,j,6+salt)};
+  }
+  treeAtLocal(x,n){const F=this.fIn;if(!F)return null;const c=this.cellAt(F,x,n);if(c<0)return null;return this.tree(F,c%F.cw,(c/F.cw)|0,0);}
+  los(x1,n1,y1,x2,n2,y2){
+    const d=Math.hypot(x2-x1,n2-n1),steps=Math.max(2,Math.ceil(d/8));
+    for(let s=1;s<steps;s++){
+      const t=s/steps,x=x1+(x2-x1)*t,n=n1+(n2-n1)*t,ly=y1+(y2-y1)*t,g=this.gH(x,n);
+      if(g>ly)return false;
+      if(t*d>35&&(1-t)*d>25){const tr=this.treeAtLocal(x,n);if(tr&&g+tr.h*.85>ly)return false;}
+    }
+    return true;
+  }
+}
+
+/* ====================================================================
+   Shared mission vocabulary
+   ==================================================================== */
+const ENEMY_NAMES={infantry:'Infantry section',ifv:'IFV',tank:'Tank',truck:'Truck',mortar:'Mortar team'};
+const enemyUnits=en=>en.units&&en.units.length?en.units:[{x:0,n:0,st:en.status}];
+const enemyTitle=en=>{const n=enemyUnits(en).length;return (n>1?n+' × ':'')+ENEMY_NAMES[en.type];};
+function enemyState(en){const u=enemyUnits(en),n=u.length;if(n===1)return en.status;
+  const dead=u.filter(x=>x.st==='destroyed').length,sup=u.filter(x=>x.st==='suppressed').length;
+  return `${dead}/${n} destroyed`+(sup?`, ${sup} suppressed`:'');}
+const VULN={infantry:[35,70],mortar:[30,60],truck:[25,50],ifv:[14,40],tank:[7,25]};
+function addLog(box,who,text,cls){
+  const ln=document.createElement('div');ln.className='ln';
+  const w=document.createElement('span');w.className='who '+(cls||'');w.textContent=`${nowStr()} ${who}`;
+  const t=document.createElement('span');t.textContent=text;
+  ln.append(w,t);box.append(ln);box.scrollTop=box.scrollHeight;
+}
+
+/* ====================================================================
+   Lobby + networking
+   ==================================================================== */
+/* Relay: messages go through a public MQTT broker over secure WebSockets, so no direct
+   peer-to-peer link is needed (works on mobile hotspots / carrier NAT). The room code's first
+   letter picks the broker; the code also derives the topic name and an AES-GCM key, so the
+   broker and other users only see random topic names and ciphertext. */
+const BROKERS={E:'wss://broker.emqx.io:8084/mqtt',H:'wss://broker.hivemq.com:8884/mqtt',M:'wss://test.mosquitto.org:8081'};
+const BROKER_ORDER=['E','H','M'];
+const CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const randChars=n=>Array.from(crypto.getRandomValues(new Uint8Array(n)),b=>CODE_CHARS[b%32]).join('');
+const randId=()=>randChars(10).toLowerCase();
+const TE=new TextEncoder(),TD=new TextDecoder();
+const toB64=u=>{let s='';for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s);};
+const fromB64=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;};
+async function roomKeys(code){
+  const h=new Uint8Array(await crypto.subtle.digest('SHA-256',TE.encode('cff-trainer-v1:'+code)));
+  const topic='cfft1/'+Array.from(h.slice(0,10),b=>b.toString(16).padStart(2,'0')).join('');
+  const base=await crypto.subtle.importKey('raw',TE.encode(code),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:TE.encode('cff-trainer-v1-salt'),iterations:150000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  return {topic,key};
+}
+class Relay{
+  constructor(k){this.k=k;this.sq=Promise.resolve();this.rq=Promise.resolve();}
+  async sealStr(obj){const iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},this.k.key,TE.encode(JSON.stringify(obj))));
+    const out=new Uint8Array(12+ct.length);out.set(iv);out.set(ct,12);return toB64(out);}
+  async open(str){try{const b=fromB64(str);if(b.length<13)return null;
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b.slice(0,12)},this.k.key,b.slice(12));return JSON.parse(TD.decode(pt));}catch(e){return null;}}
+  connect(url,will){return new Promise((res,rej)=>{
+    const c=this.c=mqtt.connect(url,{clientId:'cfft_'+randId(),clean:true,keepalive:20,reconnectPeriod:3000,connectTimeout:9000,will});
+    const to=setTimeout(()=>{c.end(true);rej(new Error('timeout'));},11000);
+    c.once('connect',()=>{clearTimeout(to);res(c);});
+  });}
+  pub(topic,obj,opts){this.sq=this.sq.then(()=>this.sealStr(obj)).then(p=>{this.c.publish(topic,p,opts||{qos:1});}).catch(()=>{});}
+  clear(topic){this.sq=this.sq.then(()=>{this.c.publish(topic,'',{qos:1,retain:true});});}
+  onMsg(fn){this.c.on('message',(topic,payload)=>{const s=payload.toString();
+    this.rq=this.rq.then(async()=>{if(!s){fn(topic,null,true);return;}const o=await this.open(s);if(o)fn(topic,o,false);}).catch(()=>{});});}
+}
+const App={name:'',role:null};
+
+$('#nameIn').value=store.get('cff-name')||'';
+{const h=location.hash.replace('#','').toUpperCase();if(/^[A-Z0-9]{6}$/.test(h))$('#codeIn').value=h;}
+function lobbyErr(t){const m=$('#lobbyMsg');m.textContent=t;m.hidden=!t;}
+function takeName(){const n=$('#nameIn').value.trim()||(App.role==='fdc'?'FDC':'Observer');store.set('cff-name',n);return n.slice(0,20);}
+$('#createBtn').onclick=()=>{App.role='fdc';App.name=takeName();startFdc();};
+$('#joinBtn').onclick=()=>{
+  const code=$('#codeIn').value.trim().toUpperCase();
+  if(!/^[A-Z0-9]{6}$/.test(code)){lobbyErr('Enter the 6-character room code from your FDC.');return;}
+  App.role='fo';App.name=takeName();startFo(code);
+};
+$('#codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('#joinBtn').click();});
+if(typeof mqtt==='undefined'||typeof THREE==='undefined'||typeof L==='undefined')lobbyErr('A library failed to load. Check your internet connection and reload.');
+if(!(window.crypto&&crypto.subtle))lobbyErr('This page must be opened over https:// (e.g. GitHub Pages).');
+
+/* ====================================================================
+   FDC
+   ==================================================================== */
+const FDC={
+  conns:new Map(),mode:'box',terrain:null,terrainKey:'',loadingTerrain:false,
+  st:{phase:'setup',exId:0,zone:null,box:null,op:null,tower:0,veg:'normal',tools:{bino:true,compass:true,map:true,plrf:true},briefing:'',enemy:null},
+  missions:[],mid:0,pickFor:null,layers:{},map:null,code:''
+};
+
+async function startFdc(){
+  $('#lobby').hidden=true;$('#fdc').hidden=false;
+  initFdcMap();
+  $('#netState').textContent='connecting…';
+  const rest=randChars(5);
+  for(const b of BROKER_ORDER){
+    const code=b+rest,keys=await roomKeys(code),R=new Relay(keys),T=keys.topic;
+    try{await R.connect(BROKERS[b],{topic:T+'/room',payload:'',qos:1,retain:true});}
+    catch(e){fdcLog('sys',`Relay ${b} did not answer, trying the next one…`);continue;}
+    FDC.R=R;FDC.code=code;
+    R.onMsg(fdcOnRelay);
+    R.c.subscribe(T+'/up/+',{qos:1});
+    R.pub(T+'/room',{t:'room',v:1},{qos:1,retain:true});
+    R.c.on('connect',()=>{$('#netState').textContent='online';R.pub(T+'/room',{t:'room',v:1},{qos:1,retain:true});});
+    R.c.on('reconnect',()=>$('#netState').textContent='reconnecting…');
+    R.c.on('offline',()=>$('#netState').textContent='offline');
+    addEventListener('beforeunload',()=>{try{R.c.publish(T+'/room','',{qos:0,retain:true});}catch(e){}});
+    $('#roomCode').textContent=code;$('#netState').textContent='online';location.hash=code;
+    fdcLog('sys','Room open. Share the code with your observers. Keep this tab open.');
+    return;
+  }
+  $('#netState').textContent='offline';
+  fdcLog('sys','Could not reach any relay server. Check the internet connection, then reload.');
+}
+function fdcOnRelay(topic,d,empty){
+  const T=FDC.R.k.topic;if(empty||!d||!topic.startsWith(T+'/up/'))return;
+  const id=topic.slice(T.length+4);
+  if(d.t==='bye'){const p=FDC.conns.get(id);FDC.conns.delete(id);if(p)fdcLog('sys',`${p.name} left.`);renderPlayers();drawViews();return;}
+  if(!FDC.conns.has(id)){FDC.conns.set(id,{conn:{peer:id,open:true},name:'Observer',view:null});renderPlayers();fdcSend(id,{t:'state',s:pubState()});}
+  else if(d.t==='hello')fdcSend(id,{t:'state',s:pubState()});
+  fdcOnData(FDC.conns.get(id).conn,d);
+}
+function fdcSend(id,msg){if(FDC.R)FDC.R.pub(FDC.R.k.topic+'/down/'+id,msg,{qos:1});}
+function fdcBroadcast(msg,except){if(FDC.R)FDC.R.pub(FDC.R.k.topic+'/down/all',except?{...msg,_x:except}:msg,{qos:1});}
+function pubState(){const s=FDC.st;return {phase:s.phase,exId:s.exId,zone:s.zone,box:s.box,op:s.op,tower:s.tower,veg:s.veg,tools:s.tools,briefing:s.briefing,enemy:s.enemy};}
+function pushState(){fdcBroadcast({t:'state',s:pubState()});}
+function fdcLog(who,text){addLog($('#fdcLog'),who==='sys'?'·':who,text,who==='sys'?'sys':(who===App.name?'fdc':''));}
+function radioAll(from,text,except){fdcBroadcast({t:'radio',from,text},except);}
+function fdcSay(text){fdcLog(App.name,text);radioAll(App.name,text);}
+
+function renderPlayers(){
+  syncObsSelect();
+  const box=$('#players');box.textContent='';
+  if(!FDC.conns.size){const s=document.createElement('span');s.className='note';s.textContent='No observers yet.';box.append(s);return;}
+  for(const p of FDC.conns.values()){const d=document.createElement('div');const a=document.createElement('span');a.textContent=p.name;const b=document.createElement('span');b.className='label';b.textContent=p.view?`${p.view.tool} · ${pad(p.view.az,4)} mils`:'connected';d.append(a,b);box.append(d);}
+}
+
+function fdcOnData(conn,d){
+  if(!d||typeof d!=='object')return;
+  const p=FDC.conns.get(conn.peer);if(!p)return;
+  const name=p.name;
+  switch(d.t){
+    case 'hello':p.name=String(d.name||'Observer').slice(0,20);fdcLog('sys',`${p.name} joined.`);renderPlayers();break;
+    case 'view':p.view={az:+d.az|0,el:+d.el|0,tool:String(d.tool).slice(0,8)};renderPlayersThrottled();drawViews();break;
+    case 'radio':{const txt=String(d.text||'').slice(0,300);fdcLog(name,txt);radioAll(name,txt,conn.peer);break;}
+  }
+}
+let rpT=0;function renderPlayersThrottled(){const n=Date.now();if(n-rpT>500){rpT=n;renderPlayers();}}
+
+/* ---- missions: the FDC opens and runs every mission by hand from what observers transmit ---- */
+const VOLLEY=5; // seconds between volleys in fire for effect
+const mName=m=>{const p=m.owner&&FDC.conns.get(m.owner);return p?p.name:m.ownerName;};
+function syncObsSelect(){
+  const sel=$('#nmObs'),sig=[...FDC.conns].map(([id,p])=>id+':'+p.name).join('|');
+  if(sel.dataset.sig===sig)return;sel.dataset.sig=sig;
+  const cur=sel.value;sel.textContent='';
+  const add=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;sel.append(o);};
+  add('','All stations');for(const [id,p] of FDC.conns)add(id,p.name);
+  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function missionMsg(t){const e=$('#missionMsg');e.textContent=t||'';e.hidden=!t;}
+function newMission(){
+  const s=FDC.st;if(!s.op){missionMsg('Place the OP before opening a fire mission.');return;}
+  const id=$('#nmObs').value,p=FDC.conns.get(id);
+  const m={id:++FDC.mid,owner:p?id:null,ownerName:p?p.name:'All stations',desc:$('#nmDesc').value.trim().slice(0,60),status:'open',rounds:0,aim:null,lastMiss:null,
+    ui:{ctl:'wr',ttt:'60',shape:'std',len:'200',att:'1600',guns:'4',rpg:'1',spread:'50',lr:'0',ad:'0',lrDir:'1',adDir:'1'}};
+  FDC.missions.unshift(m);$('#nmDesc').value='';missionMsg('');renderMissions();
+}
+/* Digits-only grids (e.g. "1234 5678") resolve to the 100 km square nearest the OP. */
+function parseGridLoose(str,ref){
+  const t=String(str).toUpperCase().replace(/[^0-9A-Z]/g,'');
+  if(/^\d+$/.test(t)&&t.length%2===0&&t.length>=2&&t.length<=10){
+    const k=t.length/2,res=10**(5-k),e=+t.slice(0,k)*res+res/2,n=+t.slice(k)*res+res/2;
+    return {E:Math.round((ref.E-e)/1e5)*1e5+e,N:Math.round((ref.N-n)/1e5)*1e5+n,res};
+  }
+  return parseMgrs(str,ref);
+}
+function setAim(m,E,N){
+  const s=FDC.st;if(!s.op||!isFinite(E)||!isFinite(N))return;
+  m.aim={E:Math.round(E),N:Math.round(N)};
+  if(!m.ui.ot)m.ui.ot=String(toMils(Math.atan2(m.aim.E-s.op.E,m.aim.N-s.op.N)));
+  missionMsg('');drawAims();renderMissions();
+}
+function aimFromGrid(m){
+  const s=FDC.st,txt=(m.ui.grid||'').trim(),g=txt&&parseGridLoose(txt,{zone:s.zone,E:s.op.E,N:s.op.N});
+  if(!g){missionMsg(`M${m.id}: grid not recognised. Use e.g. 1234 5678 or a full MGRS grid.`);return;}
+  setAim(m,g.E,g.N);
+}
+function aimFromPolar(m){
+  const s=FDC.st,dir=+m.ui.dir,dist=+m.ui.dist;
+  if(!m.ui.dir||!(dir>=0&&dir<6400)||!(dist>0)){missionMsg(`M${m.id}: enter a direction (0–6399 mils) and a distance in metres.`);return;}
+  const a=dir*MIL;m.ui.ot=String(Math.round(dir));
+  setAim(m,s.op.E+dist*Math.sin(a),s.op.N+dist*Math.cos(a));
+}
+function applyCorrection(m){
+  if(!m.aim){missionMsg(`M${m.id}: set an aim point first.`);return;}
+  const ot=+m.ui.ot,lr=(+m.ui.lrDir||1)*Math.abs(+m.ui.lr||0),ad=(+m.ui.adDir||1)*Math.abs(+m.ui.ad||0);
+  if(!m.ui.ot||!(ot>=0&&ot<6400)){missionMsg(`M${m.id}: enter the observer–target direction (0–6399 mils).`);return;}
+  if(!lr&&!ad){missionMsg(`M${m.id}: enter a deviation or range correction.`);return;}
+  const a=ot*MIL;m.ui.lr='0';m.ui.ad='0';
+  setAim(m,m.aim.E+lr*Math.cos(a)+ad*Math.sin(a),m.aim.N-lr*Math.sin(a)+ad*Math.cos(a));
+}
+function ffePlan(m){return {guns:clamp(Math.round(+m.ui.guns)||1,1,8),rpg:clamp(Math.round(+m.ui.rpg)||1,1,10),spread:clamp(+m.ui.spread||0,0,400),
+  shape:m.ui.shape==='lin'?'lin':'std',len:clamp(+m.ui.len||0,0,2000),att:clamp(+m.ui.att||0,0,6399)};}
+/* Methods of fire and control the FDC can pick per mission. */
+const CTL={wr:'When ready',amc:'At my command',ttt:'Time to target',tot:'Time on target'};
+const CTL_NOTE={amc:'Fire lays the guns and reports ready. The rounds go when you press Fire now, on the observer\'s command.',
+  ttt:'Rounds are timed to land this many seconds after you press Fire.',tot:'Rounds are timed to land at this clock time.'};
+const hms=t=>{const d=new Date(t);return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2)+':'+pad(d.getSeconds(),2);};
+function fire(m,ffe){
+  const s=FDC.st;if(!s.op||!m.aim||m.status!=='open')return;
+  const tof=clamp(+$('#tofIn').value||15,4,60),plan={ffe,tof,...(ffe?ffePlan(m):{guns:1,rpg:1,spread:0})};
+  const who=mName(m),say=$('#autoSay').checked,dc=m.ui.dc?', danger close':'',ctl=m.ui.ctl||'wr';
+  missionMsg('');
+  if(ctl==='wr'){launch(m,plan);return;}
+  if(ctl==='amc'){m.pending={plan};m.status='armed';if(say)fdcSay(`${who}, at my command${dc}, ready, over.`);renderMissions();return;}
+  let impactAt,text;
+  if(ctl==='ttt'){
+    const sec=+m.ui.ttt;if(!(sec>0)){missionMsg(`M${m.id}: enter the time to target in seconds.`);return;}
+    impactAt=Date.now()+Math.min(sec,3600)*1000;text=`${who}, time to target ${Math.round(Math.min(sec,3600))} seconds${dc}, hack, over.`;
+  }else{
+    const t=String(m.ui.tot||'').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if(!t){missionMsg(`M${m.id}: enter the time on target as HH:MM or HH:MM:SS.`);return;}
+    const d=new Date();d.setHours(+t[1],+t[2],+(t[3]||0),0);impactAt=d.getTime();
+    if(impactAt<Date.now()-432e5)impactAt+=864e5; // after midnight
+    if(impactAt<Date.now()){missionMsg(`M${m.id}: that time on target has already passed.`);return;}
+    text=`${who}, time on target ${hms(impactAt)}${dc}, over.`;
+  }
+  if(say)fdcSay(text);
+  const wait=Math.max(0,impactAt-tof*1000-Date.now());
+  m.pending={plan,impactAt:Date.now()+wait+tof*1000,timer:setTimeout(()=>{m.pending=null;launch(m,plan);},wait)};
+  m.status='pending';renderMissions();
+}
+function fireNow(m){if(m.status!=='armed'||!m.pending)return;const plan=m.pending.plan;m.pending=null;launch(m,plan);}
+function checkFiring(m,quiet){
+  if(m.status!=='armed'&&m.status!=='pending')return;
+  if(m.pending&&m.pending.timer)clearTimeout(m.pending.timer);
+  m.pending=null;m.status='open';
+  if(!quiet&&$('#autoSay').checked)fdcSay(`${mName(m)}, check firing, over.`);
+  renderMissions();
+}
+function launch(m,plan){
+  const s=FDC.st;if(!s.op||!m.aim||m.status==='ended'||m.status==='flight')return;
+  const cepRaw=+$('#cepIn').value,sig=clamp(isFinite(cepRaw)?cepRaw:0,0,200)/1.1774;
+  const {ffe,tof,guns,rpg,spread,shape,len,att}=plan;
+  const volleys=[];
+  for(let v=0;v<rpg;v++){const vol=[];
+    for(let g=0;g<guns;g++){
+      let oE=0,oN=0;
+      if(guns>1&&shape==='lin'){const t=(g/(guns-1)-.5)*len,a=att*MIL;oE=t*Math.sin(a);oN=t*Math.cos(a);} // one gun per point along the line
+      else if(guns>1){const a=g/guns*2*Math.PI;oE=spread/2*Math.sin(a);oN=spread/2*Math.cos(a);}
+      vol.push({E:m.aim.E+oE+gauss()*sig,N:m.aim.N+oN+gauss()*sig,dt:v*VOLLEY+(guns>1?Math.random()*.8:0)});}
+    volleys.push(vol);}
+  m.rounds+=guns*rpg;m.status='flight';m.lastMiss=null;renderMissions();
+  fdcBroadcast({t:'shot',mid:m.id,to:m.owner,impacts:volleys.flat(),tof});
+  if($('#autoSay').checked){
+    const who=mName(m),dc=m.ui.dc&&(m.ui.ctl||'wr')==='wr'?', danger close':'';
+    fdcSay(`${who}, shot${dc}${ffe&&rpg===1?', rounds complete':''}, over.`);
+    if(rpg>1)setTimeout(()=>fdcSay(`${who}, rounds complete, over.`),(rpg-1)*VOLLEY*1000);
+    setTimeout(()=>fdcSay(`${who}, splash, over.`),Math.max(0,tof-5)*1000);
+  }
+  volleys.forEach((vol,v)=>setTimeout(()=>landImpacts(m,vol,v===rpg-1),(tof+v*VOLLEY)*1000));
+}
+function landImpacts(m,impacts,last){
+  const s=FDC.st,en=s.enemy;
+  for(const p of impacts){const ll=utmToLl(p.E,p.N,s.zone);L.circleMarker([ll.lat,ll.lon],{radius:5,color:'#7a2a12',weight:1.5,fillColor:'#f08a3c',fillOpacity:.9}).bindTooltip(`M${m.id} · ${mgrs(s.zone,p.E,p.N,4)}`).addTo(FDC.layers.impacts);}
+  if(en){
+    const v=VULN[en.type]||[20,50],units=enemyUnits(en);let closest=1e9,changed=false;
+    for(const u of units){ // every element of the target is hit or missed on its own
+      const dmin=Math.min(...impacts.map(p=>Math.hypot(p.E-en.E-u.x,p.N-en.N-u.n)));closest=Math.min(closest,dmin);
+      if(u.st==='destroyed')continue;
+      const st=dmin<=v[0]?'destroyed':dmin<=v[1]?'suppressed':u.st;if(st!==u.st){u.st=st;changed=true;}
+    }
+    closest=Math.round(closest);m.lastMiss=m.lastMiss==null?closest:Math.min(m.lastMiss,closest);
+    if(changed){
+      if(!en.units)en.units=units;
+      en.status=overallStatus(units);
+      pushState();drawEnemy();renderSetup();fdcLog('sys',`Target ${enemyState(en)} (closest round ${closest} m).`);
+    }
+  }
+  if(last&&m.status==='flight')m.status='open';
+  renderMissions();
+}
+function fld(label,node){const l=document.createElement('label');l.className='fld';const sp=document.createElement('span');sp.className='label';sp.textContent=label;l.append(sp,node);return l;}
+function mIn(m,key,attrs){const i=document.createElement('input');Object.assign(i,attrs||{});i.value=m.ui[key]??'';i.dataset.fk=m.id+':'+key;i.addEventListener('input',()=>{m.ui[key]=i.value;});return i;}
+function mSel(m,key,opts){const el=document.createElement('select');for(const [v,t] of opts){const o=document.createElement('option');o.value=v;o.textContent=t;el.append(o);}
+  el.value=m.ui[key]??opts[0][0];el.style.width='auto';el.style.flex='none';el.dataset.fk=m.id+':'+key;el.addEventListener('change',()=>{m.ui[key]=el.value;});return el;}
+function mBtn(text,cls,fn){const b=document.createElement('button');b.className='btn'+(cls?' '+cls:'');b.textContent=text;b.onclick=fn;return b;}
+function mDiv(cls,...kids){const d=document.createElement('div');d.className=cls;d.append(...kids);return d;}
+function mLabel(t){const d=document.createElement('div');d.className='label';d.textContent=t;return d;}
+function renderMissions(){
+  const box=$('#missions'),ae=document.activeElement,fk=ae&&box.contains(ae)?ae.dataset.fk:null;
+  let ss=null,se=null;if(fk){try{ss=ae.selectionStart;se=ae.selectionEnd;}catch(e){}}
+  box.textContent='';
+  if(!FDC.missions.length){const sp=document.createElement('span');sp.className='note';sp.textContent='No missions yet. Open one when an observer calls for fire.';box.append(sp);return;}
+  const s=FDC.st,en=s.enemy;
+  for(const m of FDC.missions.slice(0,8)){
+    const ended=m.status==='ended',fly=m.status==='flight',armed=m.status==='armed',pend=m.status==='pending',dcOn=!!m.ui.dc;
+    const c=document.createElement('div');c.className='mission'+(ended?' ended':'');
+    const head=document.createElement('div');head.className='head';
+    const a=document.createElement('span');a.textContent=`M${m.id} · ${mName(m)}${dcOn?' · DANGER CLOSE':''}`;if(dcOn&&!ended)c.style.borderLeftColor='var(--hostile)';
+    const b=document.createElement('span');
+    b.className='pill '+(ended?'':fly||armed||pend?'alive':!m.aim||m.rounds?'suppressed':'destroyed');
+    b.textContent=ended?'ended':fly?'rounds in flight':armed?'ready · at my command':pend?`impact ${hms(m.pending.impactAt)}`:!m.aim?'no aim point':m.rounds?'observing':'ready';
+    head.append(a,b);
+    const kv=document.createElement('dl');kv.className='kv';
+    const add=(k,v)=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;kv.append(dt,dd);};
+    if(m.desc)add('Target',m.desc);
+    add('Aim point',m.aim?mgrs(s.zone,m.aim.E,m.aim.N,5):'not set');
+    if(m.aim&&s.op){const dx=m.aim.E-s.op.E,dy=m.aim.N-s.op.N;add('From OP',`${pad(toMils(Math.atan2(dx,dy)),4)} mils, ${Math.round(Math.hypot(dx,dy))} m`);}
+    if(m.aim&&en)add('Aim → target',`${Math.round(Math.hypot(m.aim.E-en.E,m.aim.N-en.N))} m`);
+    add('Rounds',String(m.rounds)+(m.lastMiss!=null?` · last closest ${m.lastMiss} m`:''));
+    c.append(head,kv);
+    if(!ended){
+      // where the rounds land
+      const gridIn=mIn(m,'grid',{type:'text',placeholder:'Grid, e.g. 1234 5678',className:'mono'});
+      gridIn.addEventListener('keydown',e=>{if(e.key==='Enter')aimFromGrid(m);});
+      const picking=FDC.pickFor===m.id;
+      c.append(mLabel('Where the rounds land'),
+        mDiv('row',gridIn,mBtn('Set grid','',()=>aimFromGrid(m))),
+        mDiv('grid3',fld('Direction (mils)',mIn(m,'dir',{type:'number',min:0,max:6399})),fld('Distance (m)',mIn(m,'dist',{type:'number',min:0,max:20000})),mBtn('Set polar','',()=>aimFromPolar(m))),
+        mBtn(picking?'Click the map to set the aim point (cancel)':'Pick on map',picking?'on':'',()=>{FDC.pickFor=picking?null:m.id;renderMissions();}));
+      c.querySelector('.row').style.flexWrap='nowrap';
+      if(m.aim){const n=document.createElement('div');n.className='note';n.textContent='You can also drag the aim marker on the map.';c.append(n);}
+      // corrections relayed by the observer
+      c.append(mLabel('Correction from the observer'),
+        mDiv('grid2',fld('OT direction (mils)',mIn(m,'ot',{type:'number',min:0,max:6399})),mDiv('fld',mLabel(' '),mBtn('Apply correction','',()=>applyCorrection(m)))),
+        mDiv('grid2',
+          fld('Deviation (m)',(()=>{const r=mDiv('row',mSel(m,'lrDir',[['1','Right'],['-1','Left']]),mIn(m,'lr',{type:'number',min:0,step:10}));r.style.flexWrap='nowrap';return r;})()),
+          fld('Range (m)',(()=>{const r=mDiv('row',mSel(m,'adDir',[['1','Add'],['-1','Drop']]),mIn(m,'ad',{type:'number',min:0,step:50}));r.style.flexWrap='nowrap';return r;})())));
+      // method of fire and control
+      const ctl=m.ui.ctl||'wr',ctlSel=mSel(m,'ctl',Object.entries(CTL));ctlSel.style.width='';ctlSel.addEventListener('change',renderMissions);
+      const dcIn=document.createElement('input');dcIn.type='checkbox';dcIn.checked=dcOn;dcIn.dataset.fk=m.id+':dc';
+      dcIn.addEventListener('change',()=>{m.ui.dc=dcIn.checked;drawAims();renderMissions();});
+      const dcLab=document.createElement('label');dcLab.className='chk';dcLab.append(dcIn,' Danger close');
+      const ctlArg=ctl==='ttt'?fld('Seconds to impact',mIn(m,'ttt',{type:'number',min:5,max:3600,step:5})):ctl==='tot'?fld('Impact time',mIn(m,'tot',{type:'time',step:1})):mDiv('fld');
+      const lin=m.ui.shape==='lin',shSel=mSel(m,'shape',[['std','Point / area'],['lin','Linear']]);shSel.style.width='';
+      shSel.addEventListener('change',()=>{drawAims();renderMissions();});
+      const lenIn=mIn(m,'len',{type:'number',min:0,max:2000,step:10}),attIn=mIn(m,'att',{type:'number',min:0,max:6399,step:100});
+      lenIn.addEventListener('input',drawAims);attIn.addEventListener('input',drawAims);
+      c.append(mLabel('Method of fire and control'),mDiv('grid2',fld('Control',ctlSel),ctlArg),dcLab,
+        mDiv('grid3',fld('Target',shSel),lin?fld('Length (m)',lenIn):mDiv('fld'),lin?fld('Attitude (mils)',attIn):mDiv('fld')));
+      if(lin){const n=document.createElement('div');n.className='note';n.textContent='Fire for effect spreads the guns evenly along the line, centred on the aim point. Attitude is the direction the line runs.';c.append(n);}
+      if(CTL_NOTE[ctl]){const n=document.createElement('div');n.className='note';n.textContent=CTL_NOTE[ctl];c.append(n);}
+      if(m.aim&&s.op&&!dcOn&&Math.hypot(m.aim.E-s.op.E,m.aim.N-s.op.N)<600){const w=document.createElement('div');w.className='warn';w.textContent='The aim point is within 600 m of the OP. Consider declaring danger close.';c.append(w);}
+      // firing
+      if(armed)c.append(mBtn('Fire now · on the observer\'s command','primary',()=>fireNow(m)));
+      if(armed||pend)c.append(mBtn('Check firing','danger',()=>checkFiring(m)));
+      const f1=mBtn('Fire 1 round',m.rounds?'':'primary',()=>fire(m,false));
+      const ffe=mBtn('',m.rounds?'primary':'',()=>fire(m,true));
+      const upd=()=>{const p=ffePlan(m);ffe.textContent=`Fire for effect${lin?' (linear)':''} · ${p.guns} × ${p.rpg} = ${p.guns*p.rpg} rounds`;};upd();
+      const gIn=mIn(m,'guns',{type:'number',min:1,max:8}),rIn=mIn(m,'rpg',{type:'number',min:1,max:10});
+      gIn.addEventListener('input',upd);rIn.addEventListener('input',upd);
+      f1.disabled=ffe.disabled=m.status!=='open'||!m.aim;
+      const endB=mBtn('End mission','danger',()=>{checkFiring(m,true);m.status='ended';if(FDC.pickFor===m.id)FDC.pickFor=null;drawAims();renderMissions();});
+      endB.disabled=fly;
+      c.append(mLabel('Fire'),f1,
+        lin?mDiv('grid2',fld('Guns',gIn),fld('Rounds per gun',rIn)):mDiv('grid3',fld('Guns',gIn),fld('Rounds per gun',rIn),fld('Spread (m)',mIn(m,'spread',{type:'number',min:0,max:400,step:10}))),
+        ffe,endB);
+    }
+    box.append(c);
+  }
+  if(fk){const n=box.querySelector(`[data-fk="${fk}"]`);if(n){n.focus();if(ss!=null){try{n.setSelectionRange(ss,se);}catch(e){}}}}
+}
+$('#nmCreate').onclick=newMission;
+$('#nmDesc').addEventListener('keydown',e=>{if(e.key==='Enter')newMission();});
+
+/* ---- FDC map ---- */
+const svgIcon=(html,size,anchor)=>L.divIcon({className:'',html,iconSize:size,iconAnchor:anchor});
+const ICONS={
+  op:()=>svgIcon('<svg width="30" height="26" viewBox="0 0 30 26"><path d="M15 2 L28 24 L2 24 Z" fill="rgba(91,143,214,.35)" stroke="#2c5aa0" stroke-width="2.5"/><circle cx="15" cy="17" r="2.5" fill="#2c5aa0"/></svg>',[30,26],[15,17]),
+  enemy:(st)=>svgIcon(`<svg width="30" height="30" viewBox="0 0 30 30"><path d="M15 2 L28 15 L15 28 L2 15 Z" fill="${st==='destroyed'?'rgba(60,60,60,.6)':'rgba(212,85,63,.45)'}" stroke="#a02a18" stroke-width="2.5"/>${st==='destroyed'?'<path d="M8 8 L22 22 M22 8 L8 22" stroke="#a02a18" stroke-width="2.5"/>':''}</svg>`,[30,30],[15,15]),
+  aim:()=>svgIcon('<svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="8" fill="none" stroke="#b07d00" stroke-width="2"/><path d="M14 0 V9 M14 19 V28 M0 14 H9 M19 14 H28" stroke="#b07d00" stroke-width="2"/></svg>',[28,28],[14,14]),
+};
+function initFdcMap(){
+  const map=FDC.map=L.map('fdcMap',{zoomControl:true,preferCanvas:false}).setView([56.95,24.6],8);
+  const topo=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,subdomains:'abc',attribution:'Map data © OpenStreetMap contributors, SRTM · Style © OpenTopoMap (CC-BY-SA)'});
+  const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'});
+  topo.addTo(map);L.control.layers({'Topographic':topo,'Streets':osm,'Satellite':sat}).addTo(map);
+  for(const k of ['box','grid','op','enemy','impacts','aims','views'])FDC.layers[k]=L.layerGroup().addTo(map);
+  map.on('click',e=>fdcClick(e.latlng));
+  map.on('mousemove',e=>{
+    const s=FDC.st,z=s.zone||llToUtm(e.latlng.lat,e.latlng.lng).zone;
+    const u=llToUtm(e.latlng.lat,e.latlng.lng,z);
+    let t=mgrs(z,u.E,u.N,5);
+    if(s.op){const dx=u.E-s.op.E,dy=u.N-s.op.N;t+=`  ·  from OP ${pad(toMils(Math.atan2(dx,dy)),4)} mils, ${Math.round(Math.hypot(dx,dy))} m`;}
+    $('#fdcCursor').textContent=t;
+  });
+  document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+  setMode('box');renderSetup();
+}
+const HINTS={box:'Click the center of the 20 × 20 km training area. It snaps to the 1 km grid.',op:'Click inside the area to place the observation post.',enemy:'Click anywhere in the area to place the enemy by hand, or use Spawn for a random position the observer can see.'};
+function setMode(m){FDC.mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));$('#modeHint').textContent=HINTS[m];}
+function inBox(E,N){const b=FDC.st.box;return b&&Math.abs(E-b.E)<=10000&&Math.abs(N-b.N)<=10000;}
+function setupMsg(t,cls){const m=$('#setupMsg');m.textContent=t||'';m.className=cls||'note';}
+
+function fdcClick(ll){
+  const s=FDC.st;
+  if(FDC.pickFor!=null){
+    const m=FDC.missions.find(x=>x.id===FDC.pickFor);FDC.pickFor=null;
+    if(m&&s.op){const u=llToUtm(ll.lat,ll.lng,s.zone);setAim(m,u.E,u.N);}else renderMissions();
+    return;
+  }
+  if(FDC.mode==='box'){
+    const u=llToUtm(ll.lat,ll.lng);
+    s.zone=u.zone;s.box={E:Math.round(u.E/1000)*1000,N:Math.round(u.N/1000)*1000};
+    if(s.op&&!inBox(s.op.E,s.op.N)){s.op=null;s.enemy=null;FDC.terrain=null;}
+    drawBox();drawOp();drawEnemy();setMode('op');renderSetup();
+    FDC.map.fitBounds(boxBounds(),{padding:[20,20]});
+  }else if(FDC.mode==='op'){
+    if(!s.box){setupMsg('Place the training area first.','warn');return;}
+    const u=llToUtm(ll.lat,ll.lng,s.zone);
+    if(!inBox(u.E,u.N)){setupMsg('The OP must be inside the training area.','warn');return;}
+    s.op={E:Math.round(u.E),N:Math.round(u.N)};s.enemy=null;
+    if(s.phase==='live')s.exId++;
+    drawOp();drawEnemy();renderSetup();loadFdcTerrain();pushState();setMode('enemy');
+  }else{
+    if(!s.op){setupMsg('Place the OP first.','warn');return;}
+    const u=llToUtm(ll.lat,ll.lng,s.zone);
+    if(!inBox(u.E,u.N)){setupMsg('The enemy must be inside the training area.','warn');return;}
+    const d=Math.hypot(u.E-s.op.E,u.N-s.op.N);
+    placeEnemy(u.E,u.N,$('#enemyType').value);
+    const T=FDC.terrain;let msg=`Enemy placed at ${Math.round(d)} m.`;let cls='note';
+    if(d>INNER-50){msg+=' Beyond 3.2 km the observer view is coarse.';cls='warn';}
+    if(T&&T.ready){const eye=T.gH(0,0)+s.tower+1.7,x=u.E-s.op.E,n=u.N-s.op.N;if(!T.los(0,0,eye,x,n,T.gH(x,n)+1.8)){msg+=' Probably not visible from the OP.';cls='warn';}}
+    setupMsg(msg,cls);
+  }
+}
+/* Formation chosen by the FDC: how many elements, linear or clustered, and the distance between them. */
+function enemyFormation(){
+  const att=$('#enemyAtt').value;
+  return {n:clamp(Math.round(+$('#enemyCount').value)||1,1,8),form:$('#enemyForm').value,sp:clamp(+$('#enemySp').value||40,5,500),att:att===''?null:clamp(+att||0,0,6399)};
+}
+function formationHeading(f,fallback){ // a line with a set attitude faces square to it
+  return f.form==='line'&&f.att!=null?((Math.round(f.att*360/6400)-90)%360+360)%360:fallback;
+}
+function formUnits(f,hdg,old){
+  const h=hdg*D2R,units=[];
+  for(let i=0;i<f.n;i++){
+    let lat=0,dep=0;
+    if(f.n>1){
+      if(f.form==='cluster'){const r=f.sp*.75*Math.sqrt(i),a=i*2.39996;lat=r*Math.cos(a);dep=r*Math.sin(a);}
+      else lat=(i-(f.n-1)/2)*f.sp;
+    }
+    units.push({x:Math.round(lat*Math.cos(h)+dep*Math.sin(h)),n:Math.round(-lat*Math.sin(h)+dep*Math.cos(h)),st:old&&old[i]?old[i].st:'alive'});
+  }
+  return units;
+}
+const overallStatus=units=>units.every(u=>u.st==='destroyed')?'destroyed':units.some(u=>u.st!=='alive')?'suppressed':'alive';
+function placeEnemy(E,N,type){
+  const s=FDC.st;if(type==='random'){const k=Object.keys(ENEMY_NAMES);type=k[Math.floor(Math.random()*k.length)];}
+  const f=enemyFormation(),hdg=formationHeading(f,Math.floor(Math.random()*360));
+  s.enemy={id:Date.now()%1e9,E:Math.round(E),N:Math.round(N),type,hdg,status:'alive',units:formUnits(f,hdg)};
+  drawEnemy();renderSetup();renderMissions();pushState();
+}
+function reformEnemy(){ // formation inputs changed: rearrange the enemy that is already placed
+  const en=FDC.st.enemy;if(!en)return;
+  const f=enemyFormation();en.hdg=formationHeading(f,en.hdg);en.units=formUnits(f,en.hdg,en.units);en.status=overallStatus(en.units);
+  drawEnemy();renderSetup();pushState();
+}
+['#enemyCount','#enemyForm','#enemySp','#enemyAtt'].forEach(id=>$(id).addEventListener('change',reformEnemy));
+function spawnEnemy(){
+  const s=FDC.st,T=FDC.terrain;if(!s.op||!T||!T.ready)return;
+  const eye=T.gH(0,0)+s.tower+1.7;
+  for(const strict of [true,false]){
+    for(let i=0;i<(strict?700:400);i++){
+      const r=Math.sqrt(150**2+Math.random()*((INNER-150)**2-150**2)),a=Math.random()*2*Math.PI;
+      const x=r*Math.sin(a),n=r*Math.cos(a),E=s.op.E+x,N=s.op.N+n;
+      if(!inBox(E,N))continue;
+      if(T.clsAt(x,n)!==0)continue;
+      const ty=T.gH(x,n)+1.8;
+      if(strict?!T.los(0,0,eye,x,n,ty):!terrainLos(T,eye,x,n,ty))continue;
+      placeEnemy(E,N,$('#enemyType').value);
+      if(strict)setupMsg(`Enemy spawned at ${Math.round(r)} m, visible from the OP.`);
+      else setupMsg(`Enemy spawned at ${Math.round(r)} m. Terrain is clear but trees may screen it. A tower OP or an OP at a forest edge helps.`,'warn');
+      return;
+    }
+  }
+  setupMsg('No open position found within about 3 km of this OP. Move the OP to higher or more open ground, or place the enemy by hand.','warn');
+}
+function terrainLos(T,eye,x,n,ty){const d=Math.hypot(x,n),k=Math.ceil(d/8);for(let s=1;s<k;s++){const t=s/k;if(T.gH(x*t,n*t)>eye+(ty-eye)*t)return false;}return true;}
+async function loadFdcTerrain(){
+  const s=FDC.st;if(!s.op)return;
+  const key=`${s.zone}|${s.op.E}|${s.op.N}`;FDC.terrainKey=key;
+  const T=new Terrain(s.zone,s.op.E,s.op.N,s.veg);
+  $('#spawnBtn').disabled=true;setupMsg('Loading terrain around the OP…');
+  await T.load(false,(d,t)=>{if(FDC.terrainKey===key)setupMsg(`Loading terrain around the OP… ${d}/${t}`);});
+  if(FDC.terrainKey!==key)return;
+  FDC.terrain=T;T.veg=s.veg;
+  setupMsg(T.imageryFailed?'Terrain loaded, imagery unavailable (no forest data).':'Terrain loaded. Spawn or place the enemy.');
+  renderSetup();
+}
+function boxBounds(){const s=FDC.st,b=s.box;const c=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>{const p=utmToLl(b.E+i*1e4,b.N+j*1e4,s.zone);return [p.lat,p.lon];});return L.latLngBounds(c);}
+function drawBox(){
+  const s=FDC.st,b=s.box,Lb=FDC.layers.box,Lg=FDC.layers.grid;Lb.clearLayers();Lg.clearLayers();if(!b)return;
+  const c=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>{const p=utmToLl(b.E+i*1e4,b.N+j*1e4,s.zone);return [p.lat,p.lon];});
+  L.polygon(c,{color:'#b07d00',weight:2.5,fill:false,dashArray:'8 6'}).addTo(Lb);
+  drawGridLines(Lg,s.zone,b.E-1e4,b.E+1e4,b.N-1e4,b.N+1e4,1000,'#3b5ba0');
+}
+function drawGridLines(layer,zone,E1,E2,N1,N2,step,color){
+  for(let E=Math.ceil(E1/step)*step;E<=E2;E+=step){const pts=[];for(let N=N1;N<=N2;N+=1000){const p=utmToLl(E,N,zone);pts.push([p.lat,p.lon]);}
+    L.polyline(pts,{color,weight:E%10000===0?1.6:.7,opacity:.75,interactive:false}).addTo(layer);
+    const p=utmToLl(E,N1,zone);L.marker([p.lat,p.lon],{icon:L.divIcon({className:'gridlbl',html:pad(Math.floor(E/1000)%100,2),iconSize:[18,12],iconAnchor:[-2,14]}),interactive:false}).addTo(layer);}
+  for(let N=Math.ceil(N1/step)*step;N<=N2;N+=step){const pts=[];for(let E=E1;E<=E2;E+=1000){const p=utmToLl(E,N,zone);pts.push([p.lat,p.lon]);}
+    L.polyline(pts,{color,weight:N%10000===0?1.6:.7,opacity:.75,interactive:false}).addTo(layer);
+    const p=utmToLl(E1,N,zone);L.marker([p.lat,p.lon],{icon:L.divIcon({className:'gridlbl',html:pad(Math.floor(N/1000)%100,2),iconSize:[18,12],iconAnchor:[20,6]}),interactive:false}).addTo(layer);}
+}
+function drawOp(){const s=FDC.st,Lo=FDC.layers.op;Lo.clearLayers();if(!s.op)return;const p=utmToLl(s.op.E,s.op.N,s.zone);
+  L.marker([p.lat,p.lon],{icon:ICONS.op()}).bindTooltip('OP · '+mgrs(s.zone,s.op.E,s.op.N,5)).addTo(Lo);}
+function drawEnemy(){const s=FDC.st,Le=FDC.layers.enemy;Le.clearLayers();if(!s.enemy)return;const e=s.enemy,p=utmToLl(e.E,e.N,s.zone),us=enemyUnits(e);
+  L.marker([p.lat,p.lon],{icon:ICONS.enemy(e.status)}).bindTooltip(`${enemyTitle(e)} · ${enemyState(e)} · ${mgrs(s.zone,e.E,e.N,5)}`).addTo(Le);
+  if(us.length>1)for(const u of us){const q=utmToLl(e.E+u.x,e.N+u.n,s.zone);
+    L.circleMarker([q.lat,q.lon],{radius:3.5,color:'#fff',weight:1,fillColor:u.st==='destroyed'?'#3c3c3c':u.st==='suppressed'?'#e2b34a':'#d4553f',fillOpacity:1,interactive:false}).addTo(Le);}}
+function drawAims(){const s=FDC.st,La=FDC.layers.aims;La.clearLayers();for(const m of FDC.missions){if(m.status==='ended'||!m.aim)continue;const p=utmToLl(m.aim.E,m.aim.N,s.zone);
+  const mk=L.marker([p.lat,p.lon],{icon:ICONS.aim(),draggable:true}).bindTooltip(`M${m.id} aim · ${mgrs(s.zone,m.aim.E,m.aim.N,4)} · drag to move`).addTo(La);
+  if(m.ui.shape==='lin'){const pl=ffePlan(m),a=pl.att*MIL,h=pl.len/2,e1=utmToLl(m.aim.E-h*Math.sin(a),m.aim.N-h*Math.cos(a),s.zone),e2=utmToLl(m.aim.E+h*Math.sin(a),m.aim.N+h*Math.cos(a),s.zone);
+    L.polyline([[e1.lat,e1.lon],[e2.lat,e2.lon]],{color:'#b07d00',weight:4,opacity:.85,interactive:false}).addTo(La);}
+  if(m.ui.dc)L.circle([p.lat,p.lon],{radius:600,color:'#d4553f',weight:1.5,dashArray:'6 5',fill:false,interactive:false}).addTo(La);
+  mk.on('dragend',()=>{const q=mk.getLatLng(),u=llToUtm(q.lat,q.lng,s.zone);setAim(m,u.E,u.N);});}}
+function drawViews(){const s=FDC.st,Lv=FDC.layers.views;Lv.clearLayers();if(!s.op)return;const o=utmToLl(s.op.E,s.op.N,s.zone);
+  for(const p of FDC.conns.values()){if(!p.view)continue;const a=p.view.az*MIL,q=utmToLl(s.op.E+3500*Math.sin(a),s.op.N+3500*Math.cos(a),s.zone);
+    L.polyline([[o.lat,o.lon],[q.lat,q.lon]],{color:'#2c5aa0',weight:2,opacity:.8,dashArray:p.view.tool==='eye'?'2 6':null,interactive:false}).addTo(Lv);
+    L.marker([q.lat,q.lon],{icon:L.divIcon({className:'gridlbl',html:'',iconSize:[0,0]}),interactive:false}).bindTooltip(p.name,{permanent:true,direction:'right',className:''}).addTo(Lv);}}
+function renderSetup(){
+  const s=FDC.st,kv=$('#setupKv');kv.textContent='';
+  const add=(k,v)=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;kv.append(dt,dd);};
+  add('Area',s.box?`${mgrs(s.zone,s.box.E,s.box.N,2)} ±10 km`:'not set');
+  add('OP',s.op?mgrs(s.zone,s.op.E,s.op.N,5):'not set');
+  if(s.enemy){const d=Math.hypot(s.enemy.E-s.op.E,s.enemy.N-s.op.N);add('Enemy',`${enemyTitle(s.enemy)} · ${Math.round(d)} m`);add('Enemy grid',mgrs(s.zone,s.enemy.E,s.enemy.N,5));add('Status',enemyState(s.enemy));}
+  else add('Enemy','not set');
+  $('#spawnBtn').disabled=!(FDC.terrain&&FDC.terrain.ready&&s.op);
+  $('#startBtn').disabled=!(s.op&&s.enemy);
+  $('#startBtn').textContent=s.phase==='live'?'Update exercise':'Start exercise';
+}
+function readSetupInputs(){
+  const s=FDC.st,prevVeg=s.veg,prevTower=s.tower;
+  s.tower=+$('#towerIn').value;s.veg=$('#vegIn').value;s.briefing=$('#briefIn').value.slice(0,400);
+  s.tools={bino:$('#t_bino').checked,compass:$('#t_compass').checked,map:$('#t_map').checked,plrf:$('#t_plrf').checked};
+  if(FDC.terrain)FDC.terrain.veg=s.veg;
+  return prevVeg!==s.veg||prevTower!==s.tower;
+}
+['#t_bino','#t_compass','#t_map','#t_plrf','#towerIn','#vegIn'].forEach(id=>$(id).addEventListener('change',()=>{readSetupInputs();if(FDC.st.phase==='live')pushState();}));
+$('#briefIn').addEventListener('change',()=>{readSetupInputs();if(FDC.st.phase==='live')pushState();});
+$('#spawnBtn').onclick=spawnEnemy;
+$('#startBtn').onclick=()=>{const s=FDC.st;readSetupInputs();const first=s.phase!=='live';s.phase='live';if(first){s.exId++;$('#setupSec').open=false;}pushState();renderSetup();
+  fdcSay(first?`All stations, exercise is live. ${s.briefing?s.briefing+' ':''}Over.`:'All stations, exercise updated, over.');};
+$('#clearImpacts').onclick=()=>FDC.layers.impacts.clearLayers();
+$('#copyLink').onclick=()=>{const url=location.href.split('#')[0]+'#'+FDC.code;navigator.clipboard?.writeText(url).then(()=>{$('#copyLink').textContent='Copied';setTimeout(()=>$('#copyLink').textContent='Copy invite link',1500);},()=>prompt('Invite link',url));};
+$('#fdcSayBtn').onclick=()=>{const v=$('#fdcSay').value.trim();if(!v)return;fdcSay(v.slice(0,200));$('#fdcSay').value='';};
+$('#fdcSay').addEventListener('keydown',e=>{if(e.key==='Enter')$('#fdcSayBtn').click();});
+$('#placeGo').onclick=async()=>{const q=$('#placeSearch').value.trim();if(!q)return;
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q));const j=await r.json();
+    if(j[0])FDC.map.setView([+j[0].lat,+j[0].lon],12);else setupMsg('Place not found.','warn');}catch(e){setupMsg('Search failed. Pan the map by hand.','warn');}};
+$('#placeSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('#placeGo').click();});
+
+/* ====================================================================
+   FO
+   ==================================================================== */
+const FOV={eye:50,bino:7,plrf:6};
+const FO={conn:null,st:null,key:'',T:null,ready:false,tool:'eye',az:0,el:0,compassOn:true,lases:[],
+  scene:null,camera:null,renderer:null,enemyObj:null,fx:[],trees:null,ac:null,buildToken:0,keys:new Set(),lastView:''};
+
+async function startFo(code){
+  $('#lobby').hidden=true;$('#fo').hidden=false;
+  $('#foCall').textContent=App.name;
+  try{FO.ac=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  initThree();bindFoUi();
+  location.hash=code;
+  const fail=(t,x)=>{clearTimeout(FO.joinTimer);waitScreen(t,x,null,true);};
+  const url=BROKERS[code[0]];
+  if(!url){fail('Room not found',`${code} is not a valid room code. Codes start with E, H or M; ask your FDC for the current one.`);return;}
+  waitScreen('Joining room '+code,'Step 1 of 2 · connecting to the relay…');
+  const keys=await roomKeys(code),R=FO.R=new Relay(keys),T=keys.topic;FO.id=randId();
+  const bye=await R.sealStr({t:'bye'});
+  try{await R.connect(url,{topic:T+'/up/'+FO.id,payload:bye,qos:1,retain:false});}
+  catch(e){fail("Can't reach the relay",`The relay server did not answer. A firewall, VPN or ad blocker may be blocking secure WebSockets on port ${new URL(url).port}. Try another network.`);return;}
+  waitScreen('Joining room '+code,'Step 2 of 2 · looking for the FDC…');
+  FO.joined=false;FO.roomSeen=false;
+  R.onMsg((topic,d,empty)=>{
+    if(topic===T+'/room'){
+      if(empty){if(FO.roomSeen){$('#foNet').textContent='FDC offline';fail('FDC left','The FDC closed the room or lost connection. If they reopen it, ask for the new room code.');}return;}
+      FO.roomSeen=true;R.pub(T+'/up/'+FO.id,{t:'hello',name:App.name});return;
+    }
+    if(!d||(d._x&&d._x===FO.id))return;
+    if(!FO.joined&&d.t==='state'){FO.joined=true;clearTimeout(FO.joinTimer);$('#foNet').textContent='room '+code;}
+    foOnData(d);
+  });
+  R.c.subscribe([T+'/room',T+'/down/all',T+'/down/'+FO.id],{qos:1});
+  FO.joinTimer=setTimeout(()=>{if(!FO.joined)fail(FO.roomSeen?'FDC not responding':'Room not found',FO.roomSeen
+    ?'The room exists but the FDC did not answer. Make sure the FDC tab is still open.'
+    :`No open room ${code}. Check the code. The FDC must keep their tab open; if they reloaded, the room has a new code.`);},12000);
+  R.c.on('reconnect',()=>$('#foNet').textContent='reconnecting…');
+  R.c.on('connect',()=>{if(FO.joined)$('#foNet').textContent='room '+code;});
+  addEventListener('beforeunload',()=>{try{R.c.publish(T+'/up/'+FO.id,bye,{qos:0});}catch(e){}});
+}
+function waitScreen(title,text,progress,retry){$('#foWait').hidden=false;$('#waitTitle').textContent=title;$('#waitText').textContent=text;
+  const b=$('#waitBar');b.hidden=progress==null;if(progress!=null)b.firstElementChild.style.width=(progress*100).toFixed(0)+'%';
+  $('#retryBtn').hidden=!retry;}
+function toast(t,ms=2200){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,ms);}
+function foLog(who,text,cls){addLog($('#foLog'),who,text,cls);}
+function foSend(msg){if(FO.R&&FO.id)FO.R.pub(FO.R.k.topic+'/up/'+FO.id,msg,{qos:msg.t==='view'?0:1});}
+
+function foOnData(d){
+  if(!d||typeof d!=='object')return;
+  switch(d.t){
+    case 'state':foApply(d.s);break;
+    case 'radio':{const txt=String(d.text||'').slice(0,320);foLog(String(d.from||'?').slice(0,20),txt,'fdc');
+      if(/splash/i.test(txt)&&txt.includes(App.name))toast('Splash');
+      if($('#radio').hidden)$('#radioBtn').classList.add('on');break;}
+    case 'shot':scheduleImpacts(d);break;
+  }
+}
+function foApply(s){
+  const prev=FO.st;FO.st=s;
+  // The observer is never told where the OP is; they work it out from the map and compass.
+  const fo=$('#foOp');fo.hidden=!s.tower;fo.textContent=s.tower?`OP height · ${s.tower} m`:'';
+  const br=$('#foBrief');br.hidden=!s.briefing;br.textContent=s.briefing||'';
+  renderToolbar();
+  if(s.phase!=='live'||!s.op){waitScreen('Waiting for the FDC','Connected. The exercise starts when the FDC presses Start.');return;}
+  const key=`${s.zone}|${s.op.E}|${s.op.N}|${s.veg}`;
+  if(key!==FO.key){FO.key=key;buildWorld(s);}
+  else if(FO.ready){applyEnemy();placeCamera();}
+}
+
+/* ---- three.js world ---- */
+function initThree(){
+  const r=FO.renderer=new THREE.WebGLRenderer({canvas:$('#view'),antialias:true,logarithmicDepthBuffer:true});
+  r.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  FO.camera=new THREE.PerspectiveCamera(FOV.eye,1,.5,30000);FO.camera.rotation.order='YXZ';
+  const resize=()=>{const w=innerWidth,h=innerHeight;r.setSize(w,h,false);FO.camera.aspect=w/h;FO.camera.updateProjectionMatrix();
+    const hud=$('#hud'),dpr=devicePixelRatio||1;hud.width=w*dpr;hud.height=h*dpr;};
+  addEventListener('resize',resize);resize();
+  requestAnimationFrame(loop);
+}
+function disposeScene(){if(!FO.scene)return;FO.scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>{if(m.map)m.map.dispose();m.dispose();});}});FO.scene=null;FO.fx=[];FO.enemyObj=null;}
+async function buildWorld(s){
+  const token=++FO.buildToken;FO.ready=false;
+  waitScreen('Building the observer view','Loading elevation and imagery around your OP…',0);
+  const T=new Terrain(s.zone,s.op.E,s.op.N,s.veg);
+  await T.load(true,(d,t)=>{if(token===FO.buildToken)waitScreen('Building the observer view',`Loading elevation and imagery… ${d}/${t} tiles`,d/t);});
+  if(token!==FO.buildToken)return;
+  waitScreen('Building the observer view','Painting the ground and planting trees…',1);
+  await new Promise(r=>setTimeout(r,30));
+  disposeScene();FO.T=T;
+  const sc=FO.scene=new THREE.Scene();
+  const HAZE=0xbfc8cc;
+  sc.background=new THREE.Color(HAZE);sc.fog=new THREE.FogExp2(HAZE,0.000085);
+  // sky
+  const sky=new THREE.Mesh(new THREE.SphereGeometry(20000,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false,
+    uniforms:{top:{value:new THREE.Color(0x6f93bd)},hor:{value:new THREE.Color(HAZE)}},
+    vertexShader:'varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'uniform vec3 top;uniform vec3 hor;varying vec3 vP;void main(){float t=clamp(vP.y*3.,0.,1.);gl_FragColor=vec4(mix(hor,top,pow(t,.55)),1.);}'}));
+  sky.renderOrder=-10;sky.name='sky';sc.add(sky);FO.sky=sky;
+  sc.add(new THREE.HemisphereLight(0xe4ecf4,0x55553f,.62));
+  const sun=new THREE.DirectionalLight(0xfff1dc,.55);sun.position.set(-.45,.75,.35);sc.add(sun);
+  // terrain
+  const maxTex=FO.renderer.capabilities.maxTextureSize;
+  const grain=new THREE.CanvasTexture(grainTexture());grain.wrapS=grain.wrapT=THREE.RepeatWrapping;
+  sc.add(terrainMesh(T,INNER,320,T.iIn,simTexture(T,T.iIn,T.fIn,2048),grain,0,maxTex));
+  sc.add(terrainMesh(T,OUTER,200,T.iOut,simTexture(T,T.iOut,T.fOut,1536),grain,INNER,maxTex));
+  buildTrees(T);
+  FO.az=FO.az||0;FO.el=0;
+  placeCamera();applyEnemy();
+  FO.ready=true;$('#foWait').hidden=true;
+  if(T.imageryFailed)toast('No forest data · open ground only',3500);
+}
+function terrainMesh(T,half,segs,mos,src,grain,hole,maxTex){
+  const n=segs+1,pos=new Float32Array(n*n*3),uv=new Float32Array(n*n*2),uv2=new Float32Array(n*n*2),idx=new Uint32Array(segs*segs*6);
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+    const x=-half+2*half*i/segs,no=half-2*half*j/segs,k=j*n+i,p=T.toLL(x,no);
+    let y=T.gY(x,no);
+    if(hole&&Math.abs(x)<hole&&Math.abs(no)<hole)y-=40;
+    pos[3*k]=x;pos[3*k+1]=y;pos[3*k+2]=-no;
+    const [px,py]=mos.px(p.lat,p.lon);uv[2*k]=px/mos.W;uv[2*k+1]=py/mos.H;uv2[2*k]=x/37;uv2[2*k+1]=no/37;
+  }
+  let q=0;for(let j=0;j<segs;j++)for(let i=0;i<segs;i++){const a=j*n+i,b=a+1,c=a+n,d=c+1;idx[q++]=a;idx[q++]=c;idx[q++]=b;idx[q++]=b;idx[q++]=c;idx[q++]=d;}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('uv',new THREE.BufferAttribute(uv,2));g.setAttribute('uv2',new THREE.BufferAttribute(uv2,2));g.setIndex(new THREE.BufferAttribute(idx,1));g.computeVertexNormals();
+  if(Math.max(src.width,src.height)>maxTex){const s=maxTex/Math.max(src.width,src.height),c=document.createElement('canvas');c.width=Math.floor(src.width*s);c.height=Math.floor(src.height*s);c.getContext('2d').drawImage(src,0,0,c.width,c.height);src=c;}
+  const tex=new THREE.CanvasTexture(src);tex.flipY=false;tex.anisotropy=FO.renderer.capabilities.getMaxAnisotropy();
+  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:tex,aoMap:grain,aoMapIntensity:1}));m.name='terrain';return m;
+}
+function mergeGeos(list){
+  const parts=list.map(g=>g.index?g.toNonIndexed():g);let n=0;parts.forEach(p=>n+=p.attributes.position.count);
+  const pos=new Float32Array(n*3),nor=new Float32Array(n*3);let o=0;
+  parts.forEach(p=>{pos.set(p.attributes.position.array,o*3);nor.set(p.attributes.normal.array,o*3);o+=p.attributes.position.count;});
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));g.computeBoundingSphere();g.computeBoundingBox();return g;
+}
+function buildTrees(T){
+  const list={con:[],brd:[]};
+  const take=(F,salt,inner)=>{
+    if(!F||VEG[T.veg]===0)return;
+    for(let j=0;j<F.ch;j++)for(let i=0;i<F.cw;i++){
+      const t=T.tree(F,i,j,salt);if(!t)continue;
+      const px=(i+t.jx)*F.cellPx+F.mos.x0*256,py=(j+t.jy)*F.cellPx+F.mos.y0*256;
+      const [x,n]=T.toLocal(px2lat(py,F.mos.z),px2lon(px,F.mos.z));
+      const inIn=Math.abs(x)<INNER&&Math.abs(n)<INNER;
+      if(inner?!inIn:(inIn||Math.abs(x)>8500||Math.abs(n)>8500))continue;
+      if(x*x+n*n<35*35)continue;
+      (t.t<.62?list.con:list.brd).push([x,T.gY(x,n),n,t.h*(inner?1:1.15),t.c]);
+    }
+  };
+  take(T.fIn,0,true);take(T.fOut,100,false);
+  const con=mergeGeos([new THREE.ConeGeometry(.3,.85,7,1,true).translate(0,.575,0),new THREE.CylinderGeometry(.03,.04,.2,5,1,true).translate(0,.1,0)]);
+  const brd=mergeGeos([new THREE.IcosahedronGeometry(.36,0).scale(1,.85,1).translate(0,.64,0),new THREE.CylinderGeometry(.035,.045,.36,5,1,true).translate(0,.18,0)]);
+  const mk=(geo,arr,base)=>{
+    if(!arr.length)return null;
+    const m=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({color:0xffffff}),arr.length);m.name='trees';m.frustumCulled=false;
+    const c=new THREE.Color();
+    arr.forEach((a,k)=>{c.setHex(base).offsetHSL((a[4]-.5)*.04,(a[4]-.5)*.1,(a[4]-.5)*.08);m.setColorAt(k,c);});
+    m.userData.arr=arr;FO.scene.add(m);return m;
+  };
+  FO.trees=[mk(con,list.con,0x2b3a24),mk(brd,list.brd,0x3f5230)].filter(Boolean);
+  layoutTrees();
+}
+function layoutTrees(){
+  const en=FO.st&&FO.st.enemy,T=FO.T;
+  const us=en&&T?enemyUnits(en).map(u=>[en.E+u.x-T.E0,en.N+u.n-T.N0]):[];
+  const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),P=new THREE.Vector3(),S=new THREE.Vector3();
+  for(const m of FO.trees||[]){m.userData.arr.forEach((a,k)=>{
+    const clear=us.some(p=>(a[0]-p[0])**2+(a[2]-p[1])**2<28*28),h=clear?0.001:a[3];
+    P.set(a[0],a[1]-.4,-a[2]);S.set(h*(.9+a[4]*.3),h,h*(.9+a[4]*.3));M.compose(P,Q,S);m.setMatrixAt(k,M);});
+    m.instanceMatrix.needsUpdate=true;m.computeBoundingSphere&&m.computeBoundingSphere();}
+}
+function placeCamera(){if(!FO.T||!FO.st)return;FO.camera.position.set(0,FO.st.tower+1.7,0);}
+
+/* ---- enemy models ---- */
+function enemyModel(type,dead){
+  const g=new THREE.Group(),col=dead?0x1d1d19:0x4b5034,mat=new THREE.MeshLambertMaterial({color:col}),dark=new THREE.MeshLambertMaterial({color:dead?0x141412:0x2a2c21});
+  const box=(w,h,l,x,y,z,m=mat)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,l),m);b.position.set(x,y,z);g.add(b);return b;};
+  const cyl=(r,l,x,y,z,rx)=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(r,r,l,8),mat);c.rotation.x=rx;c.position.set(x,y,z);g.add(c);return c;};
+  const man=(x,z,prone,rot)=>{const s=new THREE.Group();const m=new THREE.MeshLambertMaterial({color:dead?0x26261f:0x565a3c});
+    const b=new THREE.Mesh(prone?new THREE.BoxGeometry(.5,.35,1.75):new THREE.BoxGeometry(.5,1.4,.32),m);b.position.y=prone?.18:.7;s.add(b);
+    if(!prone){const h=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),m);h.position.y=1.58;s.add(h);}
+    s.position.set(x,0,z);s.rotation.y=rot;g.add(s);};
+  switch(type){
+    case 'tank':box(3.5,1.1,6.9,0,1.05,0);box(.6,.9,6.9,-1.55,.45,0,dark);box(.6,.9,6.9,1.55,.45,0,dark);box(2.4,.75,3,0,2,.3);cyl(.08,6,0,2.05,-4,Math.PI/2);break;
+    case 'ifv':box(3.1,1.3,6.7,0,1.05,0);box(.5,.8,6.7,-1.35,.4,0,dark);box(.5,.8,6.7,1.35,.4,0,dark);box(1.5,.6,1.7,0,2,0);cyl(.05,2.6,0,2.05,-1.8,Math.PI/2);break;
+    case 'truck':box(2.4,2.1,2.1,0,1.65,-2.6);box(2.45,2.5,4.6,0,2.1,.9,new THREE.MeshLambertMaterial({color:dead?0x1d1d19:0x5a5a40}));
+      for(const z of [-2.6,.2,1.8])for(const x of [-1.05,1.05])cyl(.5,.4,x,.5,z,0).rotation.z=Math.PI/2;break;
+    case 'mortar':cyl(.06,1.3,0,.55,0,-.75);box(.6,.06,.6,0,.03,.35,dark);man(-1,.8,false,.4);man(1.1,.6,false,-.3);man(.2,2,false,0);break;
+    default:{const pts=[[0,0],[4,3],[-4,2],[8,6],[-7,5],[2,-4],[-2,8]];pts.forEach(([x,z],k)=>man(x,z,dead||k%3===0,k));}
+  }
+  return g;
+}
+function applyEnemy(){
+  const sc=FO.scene,T=FO.T,en=FO.st&&FO.st.enemy;if(!sc||!T)return;
+  if(FO.enemyObj){sc.remove(FO.enemyObj);FO.enemyObj=null;}
+  FO.fx=FO.fx.filter(f=>{if(f.burner){f.dead=true;f.cleanup&&f.cleanup();return false;}return true;});
+  layoutTrees();
+  if(!en)return;
+  const grp=new THREE.Group();grp.name='enemy';
+  for(const u of enemyUnits(en)){
+    const x=en.E+u.x-T.E0,n=en.N+u.n-T.N0,y=T.gY(x,n),dead=u.st==='destroyed';
+    const g=enemyModel(en.type,dead);g.position.set(x,y,-n);g.rotation.y=-en.hdg*D2R;grp.add(g);
+    if(dead)addBurner(x,y,-n);
+  }
+  sc.add(grp);FO.enemyObj=grp;
+}
+
+/* ---- effects ---- */
+let SMOKE_TEX=null;
+function smokeTex(){if(SMOKE_TEX)return SMOKE_TEX;const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,2,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.5,'rgba(255,255,255,.55)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return SMOKE_TEX=new THREE.CanvasTexture(c);}
+function sprite(color,opacity,additive){return new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTex(),color,transparent:true,opacity,depthWrite:false,blending:additive?THREE.AdditiveBlending:THREE.NormalBlending,fog:true}));}
+function addFx(f){f.t=0;FO.fx.push(f);}
+function explosion(x,y,z){
+  const sc=FO.scene;if(!sc)return;
+  const flash=sprite(0xffc27a,1,true);flash.position.set(x,y+3,z);sc.add(flash);
+  addFx({life:.35,update(t){const k=t/.35;flash.scale.setScalar(10+30*k);flash.material.opacity=1-k;},cleanup(){sc.remove(flash);flash.material.dispose();}});
+  const crater=new THREE.Mesh(new THREE.CircleGeometry(3,12),new THREE.MeshLambertMaterial({color:0x2b261e}));crater.rotation.x=-Math.PI/2;crater.position.set(x,y+.35,z);sc.add(crater);
+  const puffs=[];for(let k=0;k<9;k++){const s=sprite(k<3?0x6b5e4c:0x8d8574,.9,false);s.position.set(x+(Math.random()-.5)*4,y+2,z+(Math.random()-.5)*4);s.userData={vy:3+Math.random()*7,vx:(Math.random()-.5)*2+1.2,vz:(Math.random()-.5)*2,s0:5+Math.random()*4};sc.add(s);puffs.push(s);}
+  addFx({life:28,update(t,dt){const k=t/28;for(const s of puffs){const u=s.userData;s.position.x+=u.vx*dt;s.position.z+=u.vz*dt;s.position.y+=u.vy*dt*Math.max(0,1-t/6);s.scale.setScalar(u.s0+t*2.2);s.material.opacity=.9*(1-k)*(1-k);}},
+    cleanup(){puffs.forEach(s=>{sc.remove(s);s.material.dispose();});}});
+}
+function addBurner(x,y,z){
+  const sc=FO.scene;let acc=0;const fire=sprite(0xff8a3a,.9,true);fire.position.set(x,y+1.5,z);fire.scale.setScalar(4);sc.add(fire);
+  addFx({burner:true,life:1e9,update(t,dt){fire.material.opacity=.6+.4*Math.sin(t*17)*Math.sin(t*5.3);acc+=dt;if(acc>.45){acc=0;
+      const s=sprite(0x2d2b28,.85,false);s.position.set(x,y+2,z);sc.add(s);
+      addFx({life:22,update(tt,d2){s.position.y+=d2*(4-tt*.1);s.position.x+=d2*1.8;s.scale.setScalar(3+tt*1.8);s.material.opacity=.8*(1-tt/22);},cleanup(){sc.remove(s);s.material.dispose();}});}},
+    cleanup(){sc.remove(fire);fire.material.dispose();}});
+}
+function boom(dist,delay){
+  const ac=FO.ac;if(!ac)return;if(ac.state==='suspended')ac.resume();
+  const dur=3,buf=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){const t=i/ac.sampleRate;d[i]=(Math.random()*2-1)*Math.exp(-t*(1.6+600/(dist+300)));}
+  const src=ac.createBufferSource();src.buffer=buf;
+  const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=120+2200/(1+dist/400);
+  const g=ac.createGain();g.gain.value=Math.min(1,700/(dist+250));
+  src.connect(f).connect(g).connect(ac.destination);src.start(ac.currentTime+delay);
+}
+function beep(){const ac=FO.ac;if(!ac)return;if(ac.state==='suspended')ac.resume();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=880;g.gain.value=.06;o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+.12);}
+function scheduleImpacts(d){
+  const tof=clamp(+d.tof||15,1,60);
+  setTimeout(()=>{if(!d.to||d.to===FO.id)beep();},Math.max(0,tof-5)*1000);
+  for(const p of (d.impacts||[]).slice(0,120)){
+    const dt=clamp(+p.dt||0,0,120);
+    setTimeout(()=>{
+      const T=FO.T;if(!T||!FO.ready)return;
+      const x=p.E-T.E0,n=p.N-T.N0;if(!(Math.abs(x)<=OUTER&&Math.abs(n)<=OUTER))return;
+      const y=T.gY(x,n);explosion(x,y,-n);
+      const dist=Math.hypot(x,n,y-FO.camera.position.y);boom(dist,dist/343);
+    },(tof+dt)*1000);
+  }
+}
+
+/* ---- loop & input ---- */
+let lastT=performance.now(),viewT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min(.1,(t-lastT)/1000);lastT=t;
+  if(!FO.ready||!FO.scene)return;
+  const cam=FO.camera,fov=FOV[FO.tool];
+  if(cam.fov!==fov){cam.fov=fov;cam.updateProjectionMatrix();}
+  const k=FO.keys,rate=fov*D2R*.6*dt;
+  if(k.has('ArrowLeft')||k.has('a'))FO.az-=rate;if(k.has('ArrowRight')||k.has('d'))FO.az+=rate;
+  if(k.has('ArrowUp')||k.has('w'))FO.el+=rate*.6;if(k.has('ArrowDown')||k.has('s'))FO.el-=rate*.6;
+  FO.az=(FO.az+2*Math.PI)%(2*Math.PI);FO.el=clamp(FO.el,-.5,.5);
+  cam.rotation.set(FO.el,-FO.az,0);
+  FO.sky.position.copy(cam.position);
+  for(const f of FO.fx){f.t+=dt;if(f.t>=f.life){f.dead=true;f.cleanup&&f.cleanup();}else f.update(f.t,dt);}
+  FO.fx=FO.fx.filter(f=>!f.dead);
+  FO.renderer.render(FO.scene,cam);
+  drawHud();
+  if(t-viewT>300){viewT=t;const v=`${toMils(FO.az)}|${Math.round(FO.el/MIL)}|${FO.tool}`;if(v!==FO.lastView){FO.lastView=v;foSend({t:'view',az:toMils(FO.az),el:Math.round(FO.el/MIL),tool:FO.tool});}}
+}
+function drawHud(){
+  const c=$('#hud'),x=c.getContext('2d'),dpr=devicePixelRatio||1,W=c.width,H=c.height;
+  x.clearRect(0,0,W,H);
+  const vf=FOV[FO.tool]*D2R,pxPerMil=(H/2)/Math.tan(vf/2)*MIL,cx=W/2,cy=H/2;
+  x.lineCap='round';
+  if(FO.tool==='bino'||FO.tool==='plrf'){
+    x.save();x.fillStyle='#000';x.fillRect(0,0,W,H);x.globalCompositeOperation='destination-out';
+    if(FO.tool==='bino'){const r=Math.min(W*.27,H*.47);x.beginPath();x.arc(cx-r*.55,cy,r,0,7);x.fill();x.beginPath();x.arc(cx+r*.55,cy,r,0,7);x.fill();}
+    else{const r=Math.min(W,H)*.44;x.beginPath();x.arc(cx,cy,r,0,7);x.fill();}
+    x.restore();
+  }
+  if(FO.tool==='bino'){
+    x.strokeStyle='rgba(10,10,10,.85)';x.fillStyle='rgba(10,10,10,.85)';x.lineWidth=1.3*dpr;x.font=`${10*dpr}px "IBM Plex Mono",monospace`;x.textAlign='center';
+    const half=50*pxPerMil;x.beginPath();x.moveTo(cx-half,cy);x.lineTo(cx+half,cy);x.stroke();
+    for(let m=-50;m<=50;m+=5){const px=cx+m*pxPerMil,h=(m%10===0?7:3.5)*dpr;x.beginPath();x.moveTo(px,cy-h);x.lineTo(px,cy+(m%10===0?h:0));x.stroke();if(m%10===0&&m)x.fillText(String(Math.abs(m)/10),px,cy-h-3*dpr);}
+    for(let m=5;m<=30;m+=5){const py=cy+m*pxPerMil;x.beginPath();x.moveTo(cx-(m%10===0?6:3)*dpr,py);x.lineTo(cx+(m%10===0?6:3)*dpr,py);x.stroke();}
+    x.beginPath();x.moveTo(cx,cy);x.lineTo(cx,cy+30*pxPerMil);x.stroke();
+    x.textAlign='left';x.fillText('×10 mils',cx+half+6*dpr,cy+3*dpr);
+  }
+  if(FO.tool==='plrf'){
+    x.strokeStyle='rgba(255,70,50,.9)';x.lineWidth=1.4*dpr;const b=2*pxPerMil,g=18*dpr;
+    x.strokeRect(cx-b,cy-b,2*b,2*b);
+    x.beginPath();x.moveTo(cx-b-g,cy);x.lineTo(cx-b-3*dpr,cy);x.moveTo(cx+b+3*dpr,cy);x.lineTo(cx+b+g,cy);x.moveTo(cx,cy-b-g);x.lineTo(cx,cy-b-3*dpr);x.moveTo(cx,cy+b+3*dpr);x.lineTo(cx,cy+b+g);x.stroke();
+    const l=FO.lases[0];x.fillStyle='rgba(255,70,50,.95)';x.font=`${15*dpr}px "IBM Plex Mono",monospace`;x.textAlign='center';
+    x.fillText(l&&performance.now()-l.at<8000?(l.range?`${pad(l.range,4)} m`:'----'):'LASE: SPACE',cx,cy+Math.min(W,H)*.32);
+  }
+  if(FO.st&&FO.st.tools.compass&&FO.compassOn){
+    const A=FO.az/MIL,tw=Math.min(W*.6,620*dpr),scale=tw/1200,top=12*dpr,h=34*dpr;
+    x.fillStyle='rgba(20,23,17,.72)';x.fillRect(cx-tw/2,top,tw,h+30*dpr);
+    x.save();x.beginPath();x.rect(cx-tw/2,top,tw,h);x.clip();
+    x.strokeStyle='#e3dec9';x.fillStyle='#e3dec9';x.lineWidth=1*dpr;x.font=`${11*dpr}px "IBM Plex Mono",monospace`;x.textAlign='center';
+    for(let m=Math.floor((A-620)/50)*50;m<=A+620;m+=50){const px=cx+(m-A)*scale,mm=((m%6400)+6400)%6400,big=mm%200===0;
+      x.beginPath();x.moveTo(px,top+h);x.lineTo(px,top+h-(big?12:6)*dpr);x.stroke();
+      if(big){const lbl={0:'N',1600:'E',3200:'S',4800:'W'}[mm]??String(mm/100);x.fillText(lbl,px,top+h-15*dpr);}}
+    x.restore();
+    x.fillStyle='#e2b34a';x.beginPath();x.moveTo(cx,top+h-8*dpr);x.lineTo(cx-6*dpr,top+h+2*dpr);x.lineTo(cx+6*dpr,top+h+2*dpr);x.fill();
+    const elm=Math.round(FO.el/MIL);x.font=`${13*dpr}px "IBM Plex Mono",monospace`;x.fillStyle='#e3dec9';
+    x.fillText(`AZ ${pad(toMils(FO.az),4)} mils  ${(FO.az*R2D).toFixed(1)}°   EL ${elm>=0?'+':''}${elm}`,cx,top+h+20*dpr);
+  }
+}
+function lase(){
+  if(FO.tool!=='plrf'||!FO.ready)return;
+  const cam=FO.camera,o=cam.position.clone(),d=new THREE.Vector3();cam.getWorldDirection(d);
+  const T=FO.T,MAX=5000;let best=null;
+  for(let s=2;s<=MAX;s+=2){const px=o.x+d.x*s,py=o.y+d.y*s,pz=o.z+d.z*s;if(py<=T.gY(px,-pz)){let a=s-2,b=s;for(let k=0;k<14;k++){const m=(a+b)/2;if(o.y+d.y*m<=T.gY(o.x+d.x*m,-(o.z+d.z*m)))b=m;else a=m;}best=b;break;}}
+  const rc=new THREE.Raycaster(o,d,0,MAX);const objs=[...(FO.trees||[])];if(FO.enemyObj)objs.push(FO.enemyObj);
+  const hits=rc.intersectObjects(objs,true);if(hits.length&&(best==null||hits[0].distance<best))best=hits[0].distance;
+  const r={at:performance.now(),az:toMils(FO.az),va:Math.round(Math.asin(d.y)/MIL),range:best==null?null:Math.round(best+gauss()*1.2)};
+  if(r.range!=null){r.hd=Math.round(r.range*Math.cos(Math.asin(d.y)));}
+  FO.lases.unshift(r);FO.lases.length=Math.min(FO.lases.length,6);renderLases();
+}
+function renderLases(){
+  const p=$('#lasePanel');p.hidden=!FO.lases.length;p.textContent='';
+  const h=document.createElement('div');h.className='label';h.textContent='Laser readings';p.append(h);
+  for(const l of FO.lases){const d=document.createElement('div');d.textContent=l.range==null?`---- no return   AZ ${pad(l.az,4)}`:`${pad(l.range,4)} m  AZ ${pad(l.az,4)}  VA ${l.va>=0?'+':''}${l.va}  HD ${l.hd}`;p.append(d);}
+}
+function setTool(t){
+  const tools=FO.st?FO.st.tools:{};
+  if(t==='bino'&&!tools.bino)return;if(t==='plrf'&&!tools.plrf)return;
+  FO.tool=t;renderToolbar();
+}
+function renderToolbar(){
+  const tb=$('#toolbar');tb.textContent='';const tools=FO.st?FO.st.tools:{};
+  if(FO.tool==='bino'&&!tools.bino||FO.tool==='plrf'&&!tools.plrf)FO.tool='eye';
+  const mk=(label,key,on,fn)=>{const b=document.createElement('button');b.className='btn'+(on?' on':'');b.append(label);const k=document.createElement('kbd');k.textContent=key;b.append(k);b.onclick=fn;tb.append(b);};
+  mk('Eyes','1',FO.tool==='eye',()=>setTool('eye'));
+  if(tools.bino)mk('Binoculars','2',FO.tool==='bino',()=>setTool('bino'));
+  if(tools.plrf)mk('Laser','3',FO.tool==='plrf',()=>setTool('plrf'));
+  if(tools.plrf&&FO.tool==='plrf')mk('Lase','Space',false,lase);
+  if(tools.compass)mk('Compass','C',FO.compassOn,()=>{FO.compassOn=!FO.compassOn;renderToolbar();});
+  if(tools.map)mk('Map','M',!$('#mapModal').hidden,toggleMap);
+  else $('#mapModal').hidden=true;
+}
+
+/* ---- FO map: shows the training area only, never the OP. The observer measures, marks and plots
+   compass bearings on it to work out grids. All directions are grid azimuths in mils. ---- */
+let foMap=null;
+const MAPT={mode:'measure',pins:[],lineA:null,marks:[],n:0,rose:null};
+const MAP_HINT={measure:'Measure: click two points for direction and distance.',mark:'Marker: click to drop a numbered mark labelled with its grid.',
+  line:'Line: click a start and an end point to draw a line that stays on the map.',
+  compass:'Compass: click a known point to centre the compass there, then enter an azimuth and draw the line. For resection, use the back azimuth of what you see.'};
+function foArea(){const s=FO.st;return s.box||{E:Math.round(s.op.E/1e4)*1e4,N:Math.round(s.op.N/1e4)*1e4};}
+function foAreaBounds(){const s=FO.st,b=foArea();return L.latLngBounds([[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>{const p=utmToLl(b.E+i*1e4,b.N+j*1e4,s.zone);return [p.lat,p.lon];}));}
+const mapLL=(E,N)=>{const p=utmToLl(E,N,FO.st.zone);return [p.lat,p.lon];};
+const mapLbl=(text,w)=>L.divIcon({className:'maplbl',html:text,iconSize:[w||30,14],iconAnchor:[(w||30)/2,7]});
+function mapSay(t){$('#foPin').textContent=t||MAP_HINT[MAPT.mode];}
+function clearTemp(){MAPT.pins=[];MAPT.lineA=null;if(foMap)foMap.userData.pins.clearLayers();}
+function setMapMode(m){MAPT.mode=m;clearTemp();
+  document.querySelectorAll('[data-mt]').forEach(b=>b.classList.toggle('on',b.dataset.mt===m));
+  $('#roseCtl').hidden=m!=='compass';$('#roseView').hidden=!(FO.st&&FO.st.tools.compass);mapSay();}
+function addMark(...layers){const g=L.layerGroup(layers).addTo(foMap.userData.marks);MAPT.marks.push(g);return g;}
+function mapUndo(){const g=MAPT.marks.pop();if(g)foMap.userData.marks.removeLayer(g);clearTemp();mapSay();}
+function mapClearAll(){MAPT.marks=[];MAPT.n=0;MAPT.rose=null;clearTemp();if(foMap){foMap.userData.marks.clearLayers();foMap.userData.rose.clearLayers();}mapSay();}
+function drawRose(){
+  const Lr=foMap.userData.rose;Lr.clearLayers();const c=MAPT.rose;if(!c)return;
+  const ll=mapLL(c.E,c.N),mpp=40075016.686*Math.cos(ll[0]*D2R)/(256*2**foMap.getZoom()),r=120*mpp,col='#a02a18';
+  const pt=(a,k)=>mapLL(c.E+r*k*Math.sin(a),c.N+r*k*Math.cos(a));
+  const ring=[];for(let k=0;k<=128;k++)ring.push(pt(k/128*2*Math.PI,1));
+  L.polyline(ring,{color:col,weight:1.5,interactive:false}).addTo(Lr);
+  for(let k=0;k<64;k++){const a=k*100*MIL,big=k%4===0;
+    L.polyline([pt(a,big?.86:.93),pt(a,1)],{color:col,weight:big?1.6:1,interactive:false}).addTo(Lr);
+    if(big)L.marker(pt(a,1.13),{icon:mapLbl(k===0?'N':String(k)),interactive:false}).addTo(Lr);}
+  L.polyline([pt(0,.12),pt(Math.PI,.12)],{color:col,weight:1,interactive:false}).addTo(Lr);
+  L.polyline([pt(Math.PI/2,.12),pt(-Math.PI/2,.12)],{color:col,weight:1,interactive:false}).addTo(Lr);
+}
+function roseLine(){
+  const c=MAPT.rose,v=$('#roseAz').value,az=+v;
+  if(!c){mapSay('Click the map to place the compass first.');return;}
+  if(v===''||!(az>=0&&az<6400)){mapSay('Enter an azimuth from 0 to 6399 mils.');return;}
+  const a=az*MIL,len=8000,end=mapLL(c.E+len*Math.sin(a),c.N+len*Math.cos(a));
+  addMark(L.polyline([mapLL(c.E,c.N),end],{color:'#a02a18',weight:2,interactive:false}),L.marker(end,{icon:mapLbl(pad(Math.round(az),4),40),interactive:false}));
+  mapSay(`Line drawn from ${mgrs(FO.st.zone,c.E,c.N,4)} on azimuth ${pad(Math.round(az),4)} mils. Hover a point on it to read its grid.`);
+}
+function foMapClick(e){
+  const z=FO.st.zone,u=llToUtm(e.latlng.lat,e.latlng.lng,z),P=foMap.userData.pins,g4=(q)=>mgrs(z,q.E,q.N,4);
+  const dirDist=(A,B)=>`${pad(toMils(Math.atan2(B.E-A.E,B.N-A.N)),4)} mils · ${Math.round(Math.hypot(B.E-A.E,B.N-A.N))} m`;
+  if(MAPT.mode==='measure'){
+    if(MAPT.pins.length>=2)clearTemp();
+    MAPT.pins.push({u,ll:e.latlng});
+    L.circleMarker(e.latlng,{radius:6,color:MAPT.pins.length===1?'#a02a18':'#2c5aa0',weight:2,fill:false}).bindTooltip(MAPT.pins.length===1?'A':'B',{permanent:true,direction:'top',className:'marktip'}).addTo(P);
+    const A=MAPT.pins[0],B=MAPT.pins[1];
+    if(!B){mapSay(`A ${g4(A.u)} · click a second point to measure`);return;}
+    L.polyline([A.ll,B.ll],{color:'#2c5aa0',weight:2,dashArray:'6 5',interactive:false}).addTo(P);
+    mapSay(`A ${g4(A.u)} → B ${g4(B.u)} · ${dirDist(A.u,B.u)}`);
+  }else if(MAPT.mode==='mark'){
+    const n=++MAPT.n,grid=g4(u);
+    addMark(L.circleMarker(e.latlng,{radius:5,color:'#1c1a10',weight:2,fillColor:'#e2b34a',fillOpacity:1}).bindTooltip(`${n} · ${grid.split(' ').slice(2).join(' ')}`,{permanent:true,direction:'right',offset:[6,0],className:'marktip'}));
+    mapSay(`Mark ${n} at ${grid}`);
+  }else if(MAPT.mode==='line'){
+    if(!MAPT.lineA){MAPT.lineA={u,ll:e.latlng};L.circleMarker(e.latlng,{radius:4,color:'#1c1a10',weight:2,fill:false}).addTo(P);mapSay(`Line starts at ${g4(u)} · click the end point`);return;}
+    const A=MAPT.lineA;clearTemp();
+    const mid=L.latLng((A.ll.lat+e.latlng.lat)/2,(A.ll.lng+e.latlng.lng)/2),txt=dirDist(A.u,u);
+    addMark(L.polyline([A.ll,e.latlng],{color:'#1c1a10',weight:2,interactive:false}),L.marker(mid,{icon:mapLbl(txt,130),interactive:false}));
+    mapSay(`Line ${g4(A.u)} → ${g4(u)} · ${txt}`);
+  }else{
+    MAPT.rose={E:u.E,N:u.N};drawRose();mapSay(`Compass centred on ${g4(u)}. Enter an azimuth and press Draw line.`);
+  }
+}
+function toggleMap(){
+  const mm=$('#mapModal');if(!FO.st||!FO.st.tools.map||!FO.st.op){mm.hidden=true;return;}
+  mm.hidden=!mm.hidden;renderToolbar();if(mm.hidden)return;
+  const s=FO.st,b=foArea();
+  if(!foMap){
+    const c=utmToLl(b.E,b.N,s.zone);
+    foMap=L.map('foMap').setView([c.lat,c.lon],11);
+    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,subdomains:'abc',attribution:'Map data © OpenStreetMap contributors, SRTM · Style © OpenTopoMap (CC-BY-SA)'}).addTo(foMap);
+    foMap.userData={grid:L.layerGroup().addTo(foMap),marks:L.layerGroup().addTo(foMap),rose:L.layerGroup().addTo(foMap),pins:L.layerGroup().addTo(foMap)};
+    foMap.on('mousemove',e=>{const u=llToUtm(e.latlng.lat,e.latlng.lng,FO.st.zone);$('#foMapCursor').textContent=mgrs(FO.st.zone,u.E,u.N,5);});
+    foMap.on('click',foMapClick);foMap.on('zoomend',drawRose);
+    document.querySelectorAll('[data-mt]').forEach(bn=>bn.onclick=()=>setMapMode(bn.dataset.mt));
+    $('#mapUndo').onclick=mapUndo;$('#mapClear').onclick=mapClearAll;$('#roseDraw').onclick=roseLine;
+    $('#roseAz').addEventListener('keydown',e=>{if(e.key==='Enter')roseLine();});
+    $('#roseView').onclick=()=>{$('#roseAz').value=toMils(FO.az);};
+    $('#roseBack').onclick=()=>{const v=$('#roseAz').value;if(v!=='')$('#roseAz').value=((Math.round(+v)+3200)%6400+6400)%6400;};
+  }
+  const key=`${s.zone}|${b.E}|${b.N}`,fresh=foMap.userData.key!==key;
+  if(fresh){foMap.userData.key=key;foMap.userData.grid.clearLayers();mapClearAll();
+    drawGridLines(foMap.userData.grid,s.zone,b.E-1e4,b.E+1e4,b.N-1e4,b.N+1e4,1000,'#3b5ba0');}
+  setMapMode(MAPT.mode);
+  setTimeout(()=>{foMap.invalidateSize();if(fresh)foMap.fitBounds(foAreaBounds(),{padding:[10,10]});},50);
+}
+
+/* ---- FO radio: free-text chat only ---- */
+function bindFoUi(){
+  const view=$('#view');let drag=null;
+  view.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};view.setPointerCapture(e.pointerId);if(FO.ac&&FO.ac.state==='suspended')FO.ac.resume();});
+  view.addEventListener('pointermove',e=>{if(!drag)return;const k=FOV[FO.tool]*D2R/innerHeight;FO.az-=(e.clientX-drag.x)*k;FO.el+=(e.clientY-drag.y)*k;drag={x:e.clientX,y:e.clientY};});
+  const end=()=>drag=null;view.addEventListener('pointerup',end);view.addEventListener('pointercancel',end);
+  addEventListener('keydown',e=>{
+    if($('#fo').hidden)return;const tag=(e.target.tagName||'').toLowerCase();if(tag==='input'||tag==='textarea'||tag==='select')return;
+    const k=e.key.length===1?e.key.toLowerCase():e.key;
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','a','d','w','s'].includes(k)){FO.keys.add(k);e.preventDefault();return;}
+    if(k==='1')setTool('eye');else if(k==='2')setTool('bino');else if(k==='3')setTool('plrf');
+    else if(k===' '||k==='l'){e.preventDefault();lase();}
+    else if(k==='m')toggleMap();else if(k==='c'){FO.compassOn=!FO.compassOn;renderToolbar();}
+    else if(k==='r')toggleRadio();else if(k==='Escape'){$('#mapModal').hidden=true;renderToolbar();}
+  });
+  addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;FO.keys.delete(k);});
+  addEventListener('blur',()=>FO.keys.clear());
+  $('#mapClose').onclick=toggleMap;
+  $('#radioBtn').onclick=toggleRadio;$('#radioClose').onclick=toggleRadio;
+  $('#foSayBtn').onclick=()=>{const v=$('#foSay').value.trim();if(!v)return;foSend({t:'radio',text:v.slice(0,300)});foLog(App.name,v);$('#foSay').value='';};
+  $('#foSay').addEventListener('keydown',e=>{if(e.key==='Enter')$('#foSayBtn').click();else if(e.key==='Escape')$('#foSay').blur();});
+}
+function toggleRadio(){const r=$('#radio');r.hidden=!r.hidden;$('#radioBtn').hidden=!r.hidden;$('#radioBtn').classList.remove('on');if(!r.hidden)$('#foSay').focus();}
+</script>
+</body>
+</html>
